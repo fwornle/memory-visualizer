@@ -258,6 +258,32 @@ const KnowledgeGraphVisualization = () => {
     };
   }, [handlePaste]);
 
+  // Automatically load memory.json on mount
+  useEffect(() => {
+    const loadMemoryJson = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMessage("");
+        
+        // Try to fetch the memory.json file from the same directory
+        const response = await fetch('/memory.json');
+        if (response.ok) {
+          const content = await response.text();
+          parseMemoryJson(content);
+          console.log('Successfully loaded memory.json');
+        } else {
+          console.log('memory.json not found, waiting for manual upload');
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.log('Could not auto-load memory.json:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadMemoryJson();
+  }, []); // Run only on mount
+
   // Get unique entity types and relation types for filters
   const entityTypes = graphData
     ? ["All", ...new Set(graphData.entities.map((entity) => entity.entityType))]
