@@ -8,6 +8,30 @@ import {
 } from "react";
 import * as d3 from "d3";
 
+// Helper function to convert URLs in text to clickable links
+const renderTextWithLinks = (text: string) => {
+  // URL pattern to match http/https URLs
+  const urlPattern = /(https?:\/\/[^\s,]+)/g;
+  const parts = text.split(urlPattern);
+  
+  return parts.map((part, index) => {
+    if (urlPattern.test(part)) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 // Define types for our data structures
 interface Entity {
   name: string;
@@ -324,10 +348,30 @@ const KnowledgeGraphVisualization = () => {
     // Get entity names to filter relations
     const entityNames = new Set(filteredEntities.map((entity) => entity.name));
 
-    // Filter relations based on relation type and entity names
+    // Include entities that are connected to filtered entities (to prevent orphans) - FIXED VERSION
+    const connectedEntityNames = new Set(entityNames);
+    graphData.relations.forEach((relation) => {
+      if (entityNames.has(relation.from)) {
+        connectedEntityNames.add(relation.to);
+      }
+      if (entityNames.has(relation.to)) {
+        connectedEntityNames.add(relation.from);
+      }
+    });
+
+    // Add connected entities to the filtered entities list
+    const additionalEntities = graphData.entities.filter(
+      (entity) => connectedEntityNames.has(entity.name) && !entityNames.has(entity.name)
+    );
+    filteredEntities = [...filteredEntities, ...additionalEntities];
+
+    // Update entity names set to include connected entities
+    const allEntityNames = new Set(filteredEntities.map((entity) => entity.name));
+
+    // Filter relations based on relation type and entity names (now includes connected entities)
     let filteredRelations = graphData.relations.filter(
       (relation) =>
-        entityNames.has(relation.from) && entityNames.has(relation.to)
+        allEntityNames.has(relation.from) && allEntityNames.has(relation.to)
     );
 
     if (filterRelationType !== "All") {
@@ -1078,7 +1122,7 @@ const KnowledgeGraphVisualization = () => {
                     <ul className="list-disc pl-5 mb-4">
                       {selectedNode.observations.map((obs, i) => (
                         <li key={i} className="text-sm mb-1">
-                          {obs}
+                          {renderTextWithLinks(obs)}
                         </li>
                       ))}
                     </ul>
