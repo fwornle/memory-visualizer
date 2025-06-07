@@ -1,4 +1,4 @@
-import {
+import React, {
   useEffect,
   useReducer,
   useState,
@@ -8,25 +8,90 @@ import {
 } from "react";
 import * as d3 from "d3";
 
+interface KnowledgeGraphVisualizationProps {
+  onOpenMarkdown: (filePath: string) => void;
+}
+
 // Helper function to convert URLs in text to clickable links
-const renderTextWithLinks = (text: string) => {
-  // URL pattern to match http/https URLs
-  const urlPattern = /(https?:\/\/[^\s,]+)/g;
+const renderTextWithLinks = (text: string, onOpenMarkdown: (filePath: string) => void) => {
+  // URL pattern to match http/https/file URLs
+  const urlPattern = /((?:https?|file):\/\/[^\s,]+)/g;
   const parts = text.split(urlPattern);
   
   return parts.map((part, index) => {
     if (urlPattern.test(part)) {
-      return (
-        <a
-          key={index}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 underline"
-        >
-          {part}
-        </a>
-      );
+      // For file:// URLs, we can't open them directly due to browser security
+      // Instead, we'll copy the path to clipboard when clicked
+      const isFileUrl = part.startsWith('file://');
+      
+      if (isFileUrl) {
+        // This shouldn't happen anymore, but keep as fallback
+        const filePath = part.replace('file://', '');
+        
+        return (
+          <a
+            key={index}
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              navigator.clipboard.writeText(filePath);
+              // Show a tooltip or notification that the path was copied
+              const tooltip = document.createElement('div');
+              tooltip.textContent = 'Path copied to clipboard!';
+              tooltip.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: #333;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                z-index: 1000;
+              `;
+              document.body.appendChild(tooltip);
+              setTimeout(() => document.body.removeChild(tooltip), 2000);
+            }}
+            className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+            title={`Click to copy path: ${filePath}`}
+          >
+            {part}
+          </a>
+        );
+      } else {
+        // Check if it's a localhost markdown file
+        const isLocalMarkdown = part.includes('localhost:8080') && part.endsWith('.md');
+        
+        if (isLocalMarkdown) {
+          return (
+            <a
+              key={index}
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenMarkdown(part);
+              }}
+              className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+              title="Click to view markdown content"
+            >
+              {part.split('/').pop() || part}
+            </a>
+          );
+        } else {
+          // Regular http/https URLs
+          return (
+            <a
+              key={index}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              {part}
+            </a>
+          );
+        }
+      }
     }
     return part;
   });
@@ -133,7 +198,7 @@ function historyReducer(
   }
 }
 
-const KnowledgeGraphVisualization = () => {
+const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = ({ onOpenMarkdown }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -1122,7 +1187,7 @@ const KnowledgeGraphVisualization = () => {
                     <ul className="list-disc pl-5 mb-4">
                       {selectedNode.observations.map((obs, i) => (
                         <li key={i} className="text-sm mb-1">
-                          {renderTextWithLinks(obs)}
+                          {renderTextWithLinks(obs, onOpenMarkdown)}
                         </li>
                       ))}
                     </ul>
