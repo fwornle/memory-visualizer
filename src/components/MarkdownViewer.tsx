@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import MermaidDiagram from './MermaidDiagram';
 import 'highlight.js/styles/github.css';
 
 interface MarkdownViewerProps {
@@ -87,16 +88,34 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ filePath, onClose }) =>
                     }
                     return <img {...props} src={src} className="max-w-full h-auto" />;
                   },
-                  // Ensure proper rendering of code blocks
-                  pre: ({node, ...props}) => (
-                    <pre className="bg-gray-100 rounded p-4 overflow-x-auto" {...props} />
-                  ),
-                  code: ({node, inline, ...props}) => 
-                    inline ? (
-                      <code className="bg-gray-100 px-1 rounded" {...props} />
-                    ) : (
-                      <code {...props} />
-                    ),
+                  // Handle code blocks, including mermaid
+                  pre: ({node, children, ...props}) => {
+                    // Check if this is a mermaid code block
+                    const codeElement = React.Children.toArray(children)[0] as React.ReactElement;
+                    if (
+                      codeElement && 
+                      codeElement.type === 'code' && 
+                      codeElement.props.className?.includes('language-mermaid')
+                    ) {
+                      return (
+                        <MermaidDiagram 
+                          chart={String(codeElement.props.children)} 
+                        />
+                      );
+                    }
+                    return <pre className="bg-gray-100 rounded p-4 overflow-x-auto" {...props}>{children}</pre>;
+                  },
+                  code: ({node, inline, className, children, ...props}) => {
+                    // Handle inline code
+                    if (inline) {
+                      return <code className="bg-gray-100 px-1 rounded" {...props}>{children}</code>;
+                    }
+                    // Handle block code (fallback if not caught by pre)
+                    if (className?.includes('language-mermaid')) {
+                      return <MermaidDiagram chart={String(children)} />;
+                    }
+                    return <code className={className} {...props}>{children}</code>;
+                  },
                   // Style headings properly
                   h1: ({node, ...props}) => <h1 className="text-3xl font-bold mb-4 mt-6" {...props} />,
                   h2: ({node, ...props}) => <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />,

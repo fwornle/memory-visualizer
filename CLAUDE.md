@@ -36,5 +36,27 @@ The component handles both file uploads and direct JSON pasting, automatically l
 - **D3.js v7** for force-directed graph visualization
 - **Vite** as the build tool for fast development
 - **TailwindCSS** for styling
+- **React-Markdown** with GitHub Flavored Markdown support for documentation rendering
+- **Mermaid.js** integration for rendering diagrams in markdown files
 - The app expects memory data in a specific format with entities, relationships, and observations
 - No backend required - runs entirely in the browser
+
+## Markdown Documentation Support
+
+The MarkdownViewer component supports:
+- Full GitHub Flavored Markdown (tables, strikethrough, task lists, etc.)
+- Syntax highlighting for code blocks via highlight.js
+- **Mermaid diagram rendering** - any code block with `language-mermaid` is automatically rendered as an interactive diagram
+- Automatic image path resolution for relative paths
+- Responsive layout with proper prose styling
+
+### Supported Mermaid Diagram Types
+- Flowcharts and flow diagrams
+- Sequence diagrams 
+- Class diagrams
+- State diagrams
+- Entity relationship diagrams
+- User journey maps
+- Gantt charts
+- Pie charts
+- And many more...
