@@ -97,6 +97,63 @@ const renderTextWithLinks = (text: string, onOpenMarkdown: (filePath: string) =>
   });
 };
 
+// Helper function to render observations with special handling for reference lists
+const renderObservations = (observations: string[], onOpenMarkdown: (filePath: string) => void) => {
+  console.log("🔍 renderObservations called with:", observations.length, "observations");
+  console.log("🔍 ALL observations:", observations);
+  
+  const result = [];
+  let i = 0;
+  
+  while (i < observations.length) {
+    const obs = observations[i];
+    
+    // Check if this observation starts with "References:" (single line format)
+    if (obs.trim().startsWith("References:")) {
+      console.log("🎯 Found References section at index", i, ":", obs);
+      
+      // Extract the references part after "References:"
+      const referencesText = obs.replace(/^References:\s*/, '').trim();
+      
+      if (referencesText) {
+        // Split by comma and clean up each reference
+        const references = referencesText.split(',').map(ref => ref.trim()).filter(ref => ref.length > 0);
+        
+        // Render as a proper references section
+        result.push(
+          <div key={`references-${i}`} className="mb-3">
+            <h4 className="text-sm font-semibold mb-1 text-gray-700">References:</h4>
+            <ul className="list-disc pl-5">
+              {references.map((ref, refIndex) => {
+                return (
+                  <li key={refIndex} className="text-sm mb-1">
+                    {renderTextWithLinks(ref, onOpenMarkdown)}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+        
+        // Skip this observation since we processed it
+        i++;
+        continue;
+      }
+    }
+    
+    // Regular observation
+    result.push(
+      <li key={i} className="text-sm mb-1">
+        {renderTextWithLinks(obs, onOpenMarkdown)}
+      </li>
+    );
+    
+    i++;
+  }
+  
+  return result;
+};
+
 // Define types for our data structures
 interface Entity {
   name: string;
@@ -1184,13 +1241,11 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                       </svg>
                       Observations:
                     </h3>
-                    <ul className="list-disc pl-5 mb-4">
-                      {selectedNode.observations.map((obs, i) => (
-                        <li key={i} className="text-sm mb-1">
-                          {renderTextWithLinks(obs, onOpenMarkdown)}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mb-4">
+                      <ul className="list-disc pl-5">
+                        {renderObservations(selectedNode.observations, onOpenMarkdown)}
+                      </ul>
+                    </div>
                   </>
                 )}
 
