@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github.css';
 
 interface MarkdownViewerProps {
   filePath: string;
@@ -70,7 +73,48 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ filePath, onClose }) =>
           
           {!loading && !error && (
             <div className="prose prose-blue max-w-none">
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                  img: ({node, ...props}) => {
+                    // Fix relative image paths
+                    let src = props.src || '';
+                    if (src && !src.startsWith('http')) {
+                      // Convert relative path to absolute path based on markdown file location
+                      const baseUrl = filePath.substring(0, filePath.lastIndexOf('/'));
+                      src = `${baseUrl}/${src}`;
+                    }
+                    return <img {...props} src={src} className="max-w-full h-auto" />;
+                  },
+                  // Ensure proper rendering of code blocks
+                  pre: ({node, ...props}) => (
+                    <pre className="bg-gray-100 rounded p-4 overflow-x-auto" {...props} />
+                  ),
+                  code: ({node, inline, ...props}) => 
+                    inline ? (
+                      <code className="bg-gray-100 px-1 rounded" {...props} />
+                    ) : (
+                      <code {...props} />
+                    ),
+                  // Style headings properly
+                  h1: ({node, ...props}) => <h1 className="text-3xl font-bold mb-4 mt-6" {...props} />,
+                  h2: ({node, ...props}) => <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />,
+                  h3: ({node, ...props}) => <h3 className="text-xl font-bold mb-2 mt-4" {...props} />,
+                  // Style lists
+                  ul: ({node, ...props}) => <ul className="list-disc pl-6 mb-4" {...props} />,
+                  ol: ({node, ...props}) => <ol className="list-decimal pl-6 mb-4" {...props} />,
+                  li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                  // Style paragraphs
+                  p: ({node, ...props}) => <p className="mb-4" {...props} />,
+                  // Style links
+                  a: ({node, ...props}) => (
+                    <a className="text-blue-600 hover:text-blue-800 underline" {...props} />
+                  ),
+                }}
+              >
+                {content}
+              </ReactMarkdown>
             </div>
           )}
         </div>
