@@ -283,6 +283,9 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   const parseMemoryJson = (content: string) => {
     try {
       setIsLoading(true);
+      console.log("🚀 Memory Visualizer v2.1 - Fixed Relation Parsing - Built:", new Date().toISOString());
+      console.log("📊 Parsing memory data...");
+      
       // Split the content by new lines
       const lines = content.split("\n").filter((line) => line.trim());
 
@@ -297,11 +300,18 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
             entities.push(obj as Entity);
           } else if (obj.type === "relation") {
             relations.push(obj as Relation);
+          } else if (obj.from && obj.to && obj.relationType) {
+            // Handle relations without explicit type field
+            relations.push(obj as Relation);
           }
         } catch (err) {
           console.error("Error parsing line:", line, err);
         }
       });
+
+      console.log(`✅ Parsing complete! Found ${entities.length} entities and ${relations.length} relations`);
+      console.log("📈 Entities:", entities.map(e => e.name));
+      console.log("🔗 Relations:", relations.map(r => `${r.from} → ${r.to}`));
 
       if (entities.length === 0 && relations.length === 0) {
         setErrorMessage(
