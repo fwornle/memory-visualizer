@@ -43,14 +43,25 @@ def main():
     if directory != '.':
         os.chdir(directory)
     
-    # Create server
-    with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
-        print(f"Serving HTTP on port {port} from directory '{os.getcwd()}'")
-        print(f"Server URL: http://localhost:{port}")
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\nServer stopped.")
+    # Create server with SO_REUSEADDR option
+    try:
+        with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
+            # Allow reusing the address
+            httpd.allow_reuse_address = True
+            print(f"Serving HTTP on port {port} from directory '{os.getcwd()}'")
+            print(f"Server URL: http://localhost:{port}")
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\nServer stopped.")
+    except OSError as e:
+        if e.errno == 98:  # Address already in use
+            print(f"Error: Port {port} is already in use.")
+            print("Please stop any existing server or use a different port.")
+            print(f"Try: lsof -i :{port} to see what's using the port")
+            sys.exit(1)
+        else:
+            raise
 
 
 if __name__ == "__main__":
