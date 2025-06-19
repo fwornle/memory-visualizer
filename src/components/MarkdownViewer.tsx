@@ -5,12 +5,34 @@ import rehypeHighlight from 'rehype-highlight';
 import MermaidDiagram from './MermaidDiagram';
 import 'highlight.js/styles/github.css';
 
+interface MarkdownHistoryItem {
+  filePath: string;
+  title: string;
+}
+
 interface MarkdownViewerProps {
   filePath: string;
   onClose: () => void;
+  onOpenMarkdown: (filePath: string) => void;
+  onBack: () => void;
+  onForward: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  history: MarkdownHistoryItem[];
+  historyIndex: number;
 }
 
-const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ filePath, onClose }) => {
+const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ 
+  filePath, 
+  onClose, 
+  onOpenMarkdown, 
+  onBack, 
+  onForward, 
+  canGoBack, 
+  canGoForward, 
+  history, 
+  historyIndex 
+}) => {
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -46,9 +68,40 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ filePath, onClose }) =>
       <div className="bg-white rounded-lg shadow-xl max-w-4xl max-h-[90vh] w-[90vw] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-800 truncate">
-            {filePath.split('/').pop()}
-          </h2>
+          <div className="flex items-center space-x-3">
+            {/* Navigation buttons */}
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={onBack}
+                disabled={!canGoBack}
+                className="p-2 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded transition-colors"
+                title="Go back"
+              >
+                ←
+              </button>
+              <button
+                onClick={onForward}
+                disabled={!canGoForward}
+                className="p-2 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded transition-colors"
+                title="Go forward"
+              >
+                →
+              </button>
+            </div>
+            
+            {/* Title */}
+            <h2 className="text-lg font-semibold text-gray-800 truncate">
+              {filePath.split('/').pop()}
+            </h2>
+            
+            {/* History indicator */}
+            {history.length > 1 && (
+              <span className="text-sm text-gray-500">
+                ({historyIndex + 1}/{history.length})
+              </span>
+            )}
+          </div>
+          
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-xl font-bold"
@@ -126,10 +179,36 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ filePath, onClose }) =>
                   li: ({node, ...props}) => <li className="mb-1" {...props} />,
                   // Style paragraphs
                   p: ({node, ...props}) => <p className="mb-4" {...props} />,
-                  // Style links
-                  a: ({node, ...props}) => (
-                    <a className="text-blue-600 hover:text-blue-800 underline" {...props} />
-                  ),
+                  // Style links and handle markdown file links
+                  a: ({node, href, children, ...props}) => {
+                    // Check if this is a markdown file link
+                    if (href && href.endsWith('.md')) {
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onOpenMarkdown(href);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                          {...props}
+                        >
+                          {children}
+                        </button>
+                      );
+                    }
+                    // Regular external links
+                    return (
+                      <a 
+                        className="text-blue-600 hover:text-blue-800 underline" 
+                        href={href}
+                        target={href?.startsWith('http') ? '_blank' : undefined}
+                        rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
+                        {...props} 
+                      >
+                        {children}
+                      </a>
+                    );
+                  },
                 }}
               >
                 {content}

@@ -14,17 +14,33 @@ interface KnowledgeGraphVisualizationProps {
 
 // Helper function to convert URLs in text to clickable links
 const renderTextWithLinks = (text: string, onOpenMarkdown: (filePath: string) => void) => {
-  // URL pattern to match http/https/file URLs
-  const urlPattern = /((?:https?|file):\/\/[^\s,]+)/g;
+  // Enhanced pattern to match http/https/file URLs and relative markdown files
+  const urlPattern = /((?:https?|file):\/\/[^\s,]+|[^\s,]*\.md)/g;
   const parts = text.split(urlPattern);
   
   return parts.map((part, index) => {
     if (urlPattern.test(part)) {
+      // Check if this is a markdown file (not a full URL)
+      const isMarkdownFile = part.endsWith('.md') && !part.includes('://');
       // For file:// URLs, we can't open them directly due to browser security
       // Instead, we'll copy the path to clipboard when clicked
       const isFileUrl = part.startsWith('file://');
       
-      if (isFileUrl) {
+      if (isMarkdownFile) {
+        return (
+          <button
+            key={index}
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenMarkdown(part);
+            }}
+            className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+            title="Click to view markdown content"
+          >
+            {part}
+          </button>
+        );
+      } else if (isFileUrl) {
         // This shouldn't happen anymore, but keep as fallback
         const filePath = part.replace('file://', '');
         
@@ -63,19 +79,20 @@ const renderTextWithLinks = (text: string, onOpenMarkdown: (filePath: string) =>
         const isLocalMarkdown = part.includes('localhost:8080') && part.endsWith('.md');
         
         if (isLocalMarkdown) {
+          // Extract the relative path from the localhost URL
+          const relativePath = part.replace('http://localhost:8080/', '');
           return (
-            <a
+            <button
               key={index}
-              href="#"
               onClick={(e) => {
                 e.preventDefault();
-                onOpenMarkdown(part);
+                onOpenMarkdown(relativePath);
               }}
               className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
               title="Click to view markdown content"
             >
               {part.split('/').pop() || part}
-            </a>
+            </button>
           );
         } else {
           // Regular http/https URLs
