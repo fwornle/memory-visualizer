@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -36,6 +36,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchMarkdown = async () => {
@@ -63,6 +64,18 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     }
   }, [filePath]);
 
+  const scrollToTop = () => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl max-h-[90vh] w-[90vw] flex flex-col">
@@ -86,6 +99,25 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                 title="Go forward"
               >
                 →
+              </button>
+              
+              {/* Divider */}
+              <div className="w-px h-6 bg-gray-300 mx-1"></div>
+              
+              {/* Jump navigation */}
+              <button
+                onClick={scrollToTop}
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
+                title="Jump to top"
+              >
+                ↑
+              </button>
+              <button
+                onClick={scrollToBottom}
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
+                title="Jump to bottom"
+              >
+                ↓
               </button>
             </div>
             
@@ -111,7 +143,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div ref={contentRef} className="flex-1 overflow-auto p-6">
           {loading && (
             <div className="flex items-center justify-center h-32">
               <div className="text-gray-500">Loading...</div>
