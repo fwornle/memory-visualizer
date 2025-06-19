@@ -36,6 +36,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [targetFragment, setTargetFragment] = useState<string>('');
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,8 +45,15 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
         setLoading(true);
         setError('');
         
-        // Fetch the markdown file
-        const response = await fetch(filePath);
+        // Separate file path from hash fragment
+        const url = new URL(filePath, window.location.origin);
+        const filePathOnly = url.origin + url.pathname + url.search;
+        const fragment = url.hash.substring(1); // Remove the # symbol
+        
+        setTargetFragment(fragment);
+        
+        // Fetch the markdown file (without hash fragment)
+        const response = await fetch(filePathOnly);
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
         }
@@ -63,6 +71,31 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       fetchMarkdown();
     }
   }, [filePath]);
+
+  // Handle scrolling to target fragment after content loads
+  useEffect(() => {
+    if (!loading && content && contentRef.current) {
+      if (targetFragment) {
+        // Small delay to ensure DOM is fully rendered
+        setTimeout(() => {
+          const targetElement = document.getElementById(targetFragment);
+          if (targetElement && contentRef.current) {
+            const containerRect = contentRef.current.getBoundingClientRect();
+            const targetRect = targetElement.getBoundingClientRect();
+            const scrollTop = contentRef.current.scrollTop + targetRect.top - containerRect.top - 20; // 20px offset
+            
+            contentRef.current.scrollTo({
+              top: scrollTop,
+              behavior: 'smooth'
+            });
+          }
+        }, 100);
+      } else {
+        // No fragment specified, scroll to top
+        contentRef.current.scrollTo({ top: 0, behavior: 'auto' });
+      }
+    }
+  }, [loading, content, targetFragment]);
 
   const scrollToTop = () => {
     if (contentRef.current) {
