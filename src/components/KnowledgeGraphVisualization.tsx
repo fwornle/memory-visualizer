@@ -735,22 +735,63 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       .append("circle")
       .attr("r", 10)
       .attr("fill", (d) => {
-        // Generate a color based on entity type
-        const typeColors: Record<string, string> = {
-          Memory: "#ff8c00",
-          Research: "#9370db",
-          System: "#3cb371",
-          FileCategories: "#4682b4",
-          ScanRecord: "#cd5c5c",
-          FileGroup: "#20b2aa",
-          ActionPlan: "#ff6347",
-          PatternLibrary: "#9acd32",
-          UserPreference: "#ff69b4",
-          Project: "#1e90ff",
-          Use_Case: "#ff7f50",
-          Strategy: "#8a2be2",
-        };
-        return typeColors[d.entityType] || "#ccc";
+        // Determine visual hierarchy: Project -> Key Insight -> Derived Concept
+        const isProject = d.entityType === "Project";
+        
+        // Check if this node is a key insight (first-order child of a project)
+        const isKeyInsight = !isProject && links.some(link => {
+          const sourceNode = link.source as Node;
+          const targetNode = link.target as Node;
+          return (sourceNode.entityType === "Project" && targetNode.id === d.id) ||
+                 (targetNode.entityType === "Project" && sourceNode.id === d.id);
+        });
+        
+        // Check if this node is a derived concept (second-order child - connected to key insight, not project)
+        const isDerivedConcept = !isProject && !isKeyInsight && links.some(link => {
+          const sourceNode = link.source as Node;
+          const targetNode = link.target as Node;
+          const connectedNodeId = sourceNode.id === d.id ? targetNode.id : 
+                                  targetNode.id === d.id ? sourceNode.id : null;
+          
+          if (connectedNodeId) {
+            // Check if the connected node is a key insight
+            return links.some(innerLink => {
+              const innerSource = innerLink.source as Node;
+              const innerTarget = innerLink.target as Node;
+              const connectedNodeIsKeyInsight = 
+                (innerSource.entityType === "Project" && innerTarget.id === connectedNodeId) ||
+                (innerTarget.entityType === "Project" && innerSource.id === connectedNodeId);
+              return connectedNodeIsKeyInsight;
+            });
+          }
+          return false;
+        });
+        
+        // Apply visual hierarchy colors, but preserve System entity colors (like CodingKnowledge)
+        if (d.entityType === "System") {
+          return "#3cb371"; // Green for System entities (CodingKnowledge, etc.)
+        } else if (isProject) {
+          return "#1e90ff"; // Blue for projects
+        } else if (isKeyInsight) {
+          return "#87ceeb"; // Faint blue for key insights (SkyBlue)
+        } else if (isDerivedConcept) {
+          return "#ccc"; // Gray for derived concepts
+        } else {
+          // Fallback to entity type colors for other nodes
+          const typeColors: Record<string, string> = {
+            Memory: "#ff8c00",
+            Research: "#9370db",
+            FileCategories: "#4682b4",
+            ScanRecord: "#cd5c5c",
+            FileGroup: "#20b2aa",
+            ActionPlan: "#ff6347",
+            PatternLibrary: "#9acd32",
+            UserPreference: "#ff69b4",
+            Use_Case: "#ff7f50",
+            Strategy: "#8a2be2",
+          };
+          return typeColors[d.entityType] || "#ccc";
+        }
       })
       .attr("stroke", "#fff")
       .attr("stroke-width", 1.5);

@@ -201,18 +201,72 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                     }
                     return <code className={className} {...props}>{children}</code>;
                   },
-                  // Style headings properly
-                  h1: ({node, ...props}) => <h1 className="text-3xl font-bold mb-4 mt-6" {...props} />,
-                  h2: ({node, ...props}) => <h2 className="text-2xl font-bold mb-3 mt-5" {...props} />,
-                  h3: ({node, ...props}) => <h3 className="text-xl font-bold mb-2 mt-4" {...props} />,
+                  // Style headings properly with anchor IDs
+                  h1: ({node, children, ...props}) => {
+                    const text = React.Children.toArray(children).join('');
+                    const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+                    return <h1 id={id} className="text-3xl font-bold mb-4 mt-6" {...props}>{children}</h1>;
+                  },
+                  h2: ({node, children, ...props}) => {
+                    const text = React.Children.toArray(children).join('');
+                    const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+                    return <h2 id={id} className="text-2xl font-bold mb-3 mt-5" {...props}>{children}</h2>;
+                  },
+                  h3: ({node, children, ...props}) => {
+                    const text = React.Children.toArray(children).join('');
+                    const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+                    return <h3 id={id} className="text-xl font-bold mb-2 mt-4" {...props}>{children}</h3>;
+                  },
+                  h4: ({node, children, ...props}) => {
+                    const text = React.Children.toArray(children).join('');
+                    const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+                    return <h4 id={id} className="text-lg font-semibold mb-2 mt-3" {...props}>{children}</h4>;
+                  },
+                  h5: ({node, children, ...props}) => {
+                    const text = React.Children.toArray(children).join('');
+                    const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+                    return <h5 id={id} className="text-base font-semibold mb-1 mt-2" {...props}>{children}</h5>;
+                  },
+                  h6: ({node, children, ...props}) => {
+                    const text = React.Children.toArray(children).join('');
+                    const id = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+                    return <h6 id={id} className="text-sm font-semibold mb-1 mt-2" {...props}>{children}</h6>;
+                  },
                   // Style lists
                   ul: ({node, ...props}) => <ul className="list-disc pl-6 mb-4" {...props} />,
                   ol: ({node, ...props}) => <ol className="list-decimal pl-6 mb-4" {...props} />,
                   li: ({node, ...props}) => <li className="mb-1" {...props} />,
                   // Style paragraphs
                   p: ({node, ...props}) => <p className="mb-4" {...props} />,
-                  // Style links and handle markdown file links
+                  // Style links and handle markdown file links and anchor links
                   a: ({node, href, children, ...props}) => {
+                    // Check if this is an anchor link (starts with #)
+                    if (href && href.startsWith('#')) {
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const targetId = href.substring(1); // Remove the #
+                            const targetElement = document.getElementById(targetId);
+                            if (targetElement && contentRef.current) {
+                              // Smooth scroll to the target element
+                              const containerRect = contentRef.current.getBoundingClientRect();
+                              const targetRect = targetElement.getBoundingClientRect();
+                              const scrollTop = contentRef.current.scrollTop + targetRect.top - containerRect.top - 20; // 20px offset
+                              
+                              contentRef.current.scrollTo({
+                                top: scrollTop,
+                                behavior: 'smooth'
+                              });
+                            }
+                          }}
+                          className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                          {...props}
+                        >
+                          {children}
+                        </button>
+                      );
+                    }
                     // Check if this is a markdown file link
                     if (href && href.endsWith('.md')) {
                       return (
