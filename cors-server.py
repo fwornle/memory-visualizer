@@ -45,9 +45,11 @@ def main():
     
     # Create server with SO_REUSEADDR option
     try:
-        with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
-            # Allow reusing the address
-            httpd.allow_reuse_address = True
+        # Create a custom server class with address reuse enabled
+        class ReuseAddrTCPServer(socketserver.TCPServer):
+            allow_reuse_address = True
+        
+        with ReuseAddrTCPServer(("", port), CORSHTTPRequestHandler) as httpd:
             print(f"Serving HTTP on port {port} from directory '{os.getcwd()}'")
             print(f"Server URL: http://localhost:{port}")
             try:
