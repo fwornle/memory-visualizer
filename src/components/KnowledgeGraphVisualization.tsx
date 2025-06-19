@@ -1027,10 +1027,10 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               </svg>
             </div>
             <h1 className="text-3xl font-bold mb-4">
-              Anthropic Memory Visualizer
+              DDD Coding Insights Visualizer
             </h1>
             <p className="text-lg text-gray-600">
-              Explore and analyze knowledge graphs from Anthropic's Memory MCP
+              Explore and analyze DDD coding insights and knowledge patterns
             </p>
             <span>
               <a
@@ -1162,7 +1162,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               >
                 <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
               </svg>
-              Anthropic Memory MCP Format:
+              DDD Coding Insights Format:
             </h3>
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 inline-block text-left">
               <div className="flex items-center mb-2 text-purple-800">
@@ -1251,7 +1251,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   />
                 </svg>
                 <h1 className="text-xl font-bold">
-                  Anthropic Memory MCP Visualizer
+                  DDD Coding Insights Visualizer
                 </h1>
               </div>
               <button
