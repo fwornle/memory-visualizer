@@ -730,9 +730,20 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         event.stopPropagation();
       });
 
+    // Add selection ring (hidden by default)
+    node
+      .append("circle")
+      .attr("class", "selection-ring")
+      .attr("r", 16)
+      .attr("fill", "none")
+      .attr("stroke", "#ff6b6b")
+      .attr("stroke-width", 3)
+      .attr("opacity", 0);
+
     // Add circles to nodes
     node
       .append("circle")
+      .attr("class", "node-circle")
       .attr("r", 10)
       .attr("fill", (d) => {
         // Determine visual hierarchy: Project -> Key Insight -> Derived Concept
@@ -885,25 +896,102 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   
   // Recenter graph when a node is selected
   useEffect(() => {
-    if (!selectedNode || !svgRef.current) return;
+    if (!selectedNode || !svgRef.current || !graphData) return;
     const zoomBehavior = zoomBehaviorRef.current;
     if (!zoomBehavior) return;
-    const { x, y } = selectedNode;
-    if (x === undefined || y === undefined) return;
-    const k = transformRef.current.k;
-    const width = dimensions.width;
-    const height = dimensions.height;
-    const newX = width / 2 - x * k;
-    const newY = height / 2 - y * k;
-    const svgSel = d3.select(svgRef.current);
-    svgSel
-      .transition()
-      .duration(750)
-      .call(
-        zoomBehavior.transform as any,
-        d3.zoomIdentity.translate(newX, newY).scale(k)
-      );
-  }, [selectedNode, dimensions]);
+    
+    // Calculate available graph area (2/3 of total when sidebar is open)
+    const availableWidth = dimensions.width * (2/3);
+    const availableHeight = dimensions.height;
+    
+    // Get all nodes to calculate bounding box
+    const svg = d3.select(svgRef.current);
+    const allNodes = svg.selectAll('.node').data() as Node[];
+    
+    if (allNodes.length === 0) return;
+    
+    // Calculate bounding box of all nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    allNodes.forEach(node => {
+      if (node.x !== undefined && node.y !== undefined) {
+        minX = Math.min(minX, node.x);
+        minY = Math.min(minY, node.y);
+        maxX = Math.max(maxX, node.x);
+        maxY = Math.max(maxY, node.y);
+      }
+    });
+    
+    // Add padding around the bounding box
+    const padding = 50;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+    
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+    
+    // Calculate scale to fit graph in available area
+    const scaleX = availableWidth / graphWidth;
+    const scaleY = availableHeight / graphHeight;
+    const fitScale = Math.min(scaleX, scaleY, 1.5); // Don't zoom in more than 1.5x
+    
+    // Check if entire graph fits in the available area at current or fit scale
+    const currentScale = transformRef.current.k;
+    const effectiveScale = Math.min(currentScale, fitScale);
+    
+    if (graphWidth * effectiveScale <= availableWidth && graphHeight * effectiveScale <= availableHeight) {
+      // Center the entire graph in the available area
+      const graphCenterX = (minX + maxX) / 2;
+      const graphCenterY = (minY + maxY) / 2;
+      const newX = availableWidth / 2 - graphCenterX * effectiveScale;
+      const newY = availableHeight / 2 - graphCenterY * effectiveScale;
+      
+      const svgSel = d3.select(svgRef.current);
+      svgSel
+        .transition()
+        .duration(750)
+        .call(
+          zoomBehavior.transform as any,
+          d3.zoomIdentity.translate(newX, newY).scale(effectiveScale)
+        );
+    } else {
+      // Graph doesn't fit, center the selected node instead
+      const { x, y } = selectedNode;
+      if (x === undefined || y === undefined) return;
+      
+      const newX = availableWidth / 2 - x * currentScale;
+      const newY = availableHeight / 2 - y * currentScale;
+      
+      const svgSel = d3.select(svgRef.current);
+      svgSel
+        .transition()
+        .duration(750)
+        .call(
+          zoomBehavior.transform as any,
+          d3.zoomIdentity.translate(newX, newY).scale(currentScale)
+        );
+    }
+  }, [selectedNode, dimensions, graphData]);
+
+  // Update selection ring visibility when node selection changes
+  useEffect(() => {
+    if (!svgRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    
+    // Hide all selection rings
+    svg.selectAll('.selection-ring')
+      .attr('opacity', 0);
+    
+    // Show selection ring for selected node
+    if (selectedNode) {
+      svg.selectAll('.node')
+        .filter((d: any) => d.id === selectedNode.id)
+        .select('.selection-ring')
+        .attr('opacity', 1);
+    }
+  }, [selectedNode]);
 
   // Helper function to get relation counts
   const getRelationCounts = (nodeName) => {
