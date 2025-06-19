@@ -143,7 +143,7 @@ const renderObservations = (observations: string[], onOpenMarkdown: (filePath: s
             <ul className="list-disc pl-5">
               {references.map((ref, refIndex) => {
                 return (
-                  <li key={refIndex} className="text-sm mb-1">
+                  <li key={refIndex} className="text-sm mb-1 whitespace-pre-wrap">
                     {renderTextWithLinks(ref, onOpenMarkdown)}
                   </li>
                 );
@@ -160,7 +160,7 @@ const renderObservations = (observations: string[], onOpenMarkdown: (filePath: s
     
     // Regular observation
     result.push(
-      <li key={i} className="text-sm mb-1">
+      <li key={i} className="text-sm mb-1 whitespace-pre-wrap">
         {renderTextWithLinks(obs, onOpenMarkdown)}
       </li>
     );
