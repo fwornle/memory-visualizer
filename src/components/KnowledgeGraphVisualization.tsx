@@ -7,6 +7,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import * as d3 from "d3";
+import { TeamSelector } from "./TeamSelector";
 
 interface KnowledgeGraphVisualizationProps {
   onOpenMarkdown: (filePath: string) => void;
@@ -1498,6 +1499,9 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           </div>
         </div>
       )}
+
+      {/* Floating Team Selector */}
+      <TeamSelector />
     </div>
   );
 };
