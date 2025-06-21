@@ -66,14 +66,24 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_get_available_teams(self):
         """Get list of available teams by scanning shared-memory-*.json files."""
-        coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Use CODING_KB_PATH if set, otherwise use the parent directory
+        kb_path = os.environ.get('CODING_KB_PATH')
+        if not kb_path:
+            # Default to parent directory of this script (the coding repo)
+            kb_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
         available_teams = []
         
         # No more default - only scan for team-specific files
-        for filename in os.listdir(coding_path):
-            if filename.startswith('shared-memory-') and filename.endswith('.json') and not filename.endswith('-legacy-backup.json'):
-                team = filename.replace('shared-memory-', '').replace('.json', '')
-                available_teams.append(team)
+        try:
+            for filename in os.listdir(kb_path):
+                if filename.startswith('shared-memory-') and filename.endswith('.json') and not filename.endswith('-legacy-backup.json'):
+                    team = filename.replace('shared-memory-', '').replace('.json', '')
+                    available_teams.append(team)
+        except OSError as e:
+            print(f"Error reading KB path {kb_path}: {e}", file=sys.stderr)
+            # Return at least coding team as fallback
+            available_teams = ['coding']
         
         # Sort for consistent ordering, but put coding first
         available_teams.sort()
@@ -84,20 +94,27 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Get entity counts for each team
         team_info = []
         for team in available_teams:
-            filepath = os.path.join(coding_path, f'shared-memory-{team}.json')
+            filepath = os.path.join(kb_path, f'shared-memory-{team}.json')
             
             try:
                 with open(filepath, 'r') as f:
                     data = json.load(f)
                     entity_count = len(data.get('entities', []))
+                    display_name = data.get('displayName', team.title())
+                    description = data.get('description', f'{display_name} knowledge base')
                     team_info.append({
                         'name': team,
+                        'displayName': display_name,
+                        'description': description,
                         'entities': entity_count,
                         'file': os.path.basename(filepath)
                     })
-            except:
+            except Exception as e:
+                print(f"Error reading {filepath}: {e}", file=sys.stderr)
                 team_info.append({
                     'name': team,
+                    'displayName': team.title(),
+                    'description': f'{team.title()} knowledge base',
                     'entities': 0,
                     'file': os.path.basename(filepath)
                 })

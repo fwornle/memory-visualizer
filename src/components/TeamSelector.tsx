@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 
 interface TeamInfo {
   name: string;
+  displayName: string;
+  description: string;
   entities: number;
   file: string;
 }
@@ -184,13 +186,13 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900 capitalize">{team.name}</span>
+                    <span className="font-medium text-gray-900">{team.displayName}</span>
                     <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
                       {team.entities}
                     </span>
                   </div>
                   <span className="text-xs text-gray-500 truncate block">
-                    {team.file}
+                    {team.description}
                   </span>
                 </div>
               </label>
