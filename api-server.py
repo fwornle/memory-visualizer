@@ -53,14 +53,14 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_get_current_teams(self):
         """Get currently selected teams from CODING_TEAM env var."""
-        teams_env = os.environ.get('CODING_TEAM', 'default')
+        teams_env = os.environ.get('CODING_TEAM', 'coding')  # Default to coding
         
         # Parse teams similar to VKB server
         teams = teams_env.replace('{', '').replace('}', '').split(',')
         teams = [t.strip() for t in teams if t.strip()]
         
-        if not teams or teams == ['default']:
-            teams = ['default']
+        if not teams:
+            teams = ['coding']  # Default to coding team
         
         self.send_json_response({'teams': teams, 'raw': teams_env})
     
@@ -69,26 +69,22 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         available_teams = []
         
-        # Check for default shared-memory.json
-        if os.path.exists(os.path.join(coding_path, 'shared-memory.json')):
-            available_teams.append('default')
-        
-        # Scan for team-specific files
+        # No more default - only scan for team-specific files
         for filename in os.listdir(coding_path):
-            if filename.startswith('shared-memory-') and filename.endswith('.json'):
+            if filename.startswith('shared-memory-') and filename.endswith('.json') and not filename.endswith('-legacy-backup.json'):
                 team = filename.replace('shared-memory-', '').replace('.json', '')
                 available_teams.append(team)
         
-        # Sort for consistent ordering
+        # Sort for consistent ordering, but put coding first
         available_teams.sort()
+        if 'coding' in available_teams:
+            available_teams.remove('coding')
+            available_teams.insert(0, 'coding')
         
         # Get entity counts for each team
         team_info = []
         for team in available_teams:
-            if team == 'default':
-                filepath = os.path.join(coding_path, 'shared-memory.json')
-            else:
-                filepath = os.path.join(coding_path, f'shared-memory-{team}.json')
+            filepath = os.path.join(coding_path, f'shared-memory-{team}.json')
             
             try:
                 with open(filepath, 'r') as f:
@@ -118,10 +114,10 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             teams = data.get('teams', [])
             
             if not teams:
-                teams = ['default']
+                teams = ['coding']
             
             # Update environment variable
-            teams_str = ','.join(teams) if teams != ['default'] else 'default'
+            teams_str = ','.join(teams)
             os.environ['CODING_TEAM'] = teams_str
             
             # Trigger data regeneration by deleting memory.json
