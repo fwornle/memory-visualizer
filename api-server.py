@@ -52,8 +52,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, "Not Found")
     
     def handle_get_current_teams(self):
-        """Get currently selected teams from CODING_TEAM env var."""
-        teams_env = os.environ.get('CODING_TEAM', 'coding')  # Default to coding
+        """Get currently selected teams from KNOWLEDGE_VIEW env var."""
+        teams_env = os.environ.get('KNOWLEDGE_VIEW', 'coding')  # Default to coding
         
         # Parse teams similar to VKB server
         teams = teams_env.replace('{', '').replace('}', '').split(',')
@@ -122,7 +122,7 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_json_response({'available': team_info})
     
     def handle_set_teams(self):
-        """Update CODING_TEAM env var and reload visualization."""
+        """Update KNOWLEDGE_VIEW env var and reload visualization."""
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         
@@ -135,7 +135,7 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             
             # Update environment variable
             teams_str = ','.join(teams)
-            os.environ['CODING_TEAM'] = teams_str
+            os.environ['KNOWLEDGE_VIEW'] = teams_str
             
             # Trigger data regeneration by deleting memory.json
             dist_path = os.path.join(os.path.dirname(__file__), 'dist', 'memory.json')
@@ -206,7 +206,7 @@ def main():
             print(f"Serving HTTP with API on port {port} from directory '{os.getcwd()}'")
             print(f"Server URL: http://localhost:{port}")
             print("API endpoints:")
-            print("  GET  /api/current-teams - Get current CODING_TEAM setting")
+            print("  GET  /api/current-teams - Get current KNOWLEDGE_VIEW setting")
             print("  GET  /api/available-teams - List available team files")
             print("  POST /api/teams - Update team selection")
             try:

@@ -495,17 +495,87 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       );
     }
 
+    // ALWAYS include System entities if we have ANY filtered entities
+    // This ensures CollectiveKnowledge is always present when there are other nodes
+    if (filteredEntities.length > 0 && filterEntityType !== "System") {
+      const systemEntities = graphData.entities.filter(
+        (entity) => entity.entityType === "System"
+      );
+      // Add System entities that aren't already in the filtered list
+      systemEntities.forEach((sysEntity) => {
+        if (!filteredEntities.some(e => e.name === sysEntity.name)) {
+          filteredEntities.push(sysEntity);
+        }
+      });
+    }
+    
+    // Special case: If we still don't have CollectiveKnowledge but have other entities,
+    // create a placeholder CollectiveKnowledge entity to maintain graph structure
+    if (filteredEntities.length > 0 && !filteredEntities.some(e => e.name === "CollectiveKnowledge")) {
+      // Check if any relations reference CollectiveKnowledge
+      const hasCollectiveKnowledgeRelations = graphData.relations.some(r => 
+        r.from === "CollectiveKnowledge" || r.to === "CollectiveKnowledge"
+      );
+      
+      if (hasCollectiveKnowledgeRelations) {
+        // Add a virtual CollectiveKnowledge entity
+        filteredEntities.push({
+          name: "CollectiveKnowledge",
+          entityType: "System",
+          type: "entity",
+          observations: ["Central knowledge hub for cross-view insights"]
+        });
+      }
+    }
+
     // Get entity names to filter relations
     const entityNames = new Set(filteredEntities.map((entity) => entity.name));
 
-    // Include entities that are connected to filtered entities (to prevent orphans) - FIXED VERSION
+    // Include entities that are connected to filtered entities (to prevent orphans) - ENHANCED VERSION
     const connectedEntityNames = new Set(entityNames);
+    
+    // First pass: Add directly connected entities
     graphData.relations.forEach((relation) => {
       if (entityNames.has(relation.from)) {
         connectedEntityNames.add(relation.to);
       }
       if (entityNames.has(relation.to)) {
         connectedEntityNames.add(relation.from);
+      }
+    });
+
+    // Second pass: Preserve important hub nodes (System entities and high-connectivity nodes)
+    // Also ensure System entities are ALWAYS included when they have connections to filtered entities
+    graphData.entities.forEach((entity) => {
+      // Always include System entities (like CollectiveKnowledge) if they have ANY connections to our filtered entities
+      if (entity.entityType === "System") {
+        // Check if this System entity has any connections to our filtered entities
+        const hasConnectionsToFiltered = graphData.relations.some((relation) => 
+          (relation.from === entity.name && connectedEntityNames.has(relation.to)) ||
+          (relation.to === entity.name && connectedEntityNames.has(relation.from))
+        );
+        
+        // Always add System entities that have connections to filtered nodes
+        if (hasConnectionsToFiltered || connectedEntityNames.size > 0) {
+          connectedEntityNames.add(entity.name);
+        }
+      }
+      
+      // Include entities with high connectivity (connected to many other entities)
+      const connectionCount = graphData.relations.filter(
+        (relation) => relation.from === entity.name || relation.to === entity.name
+      ).length;
+      
+      // If an entity has 3+ connections and any of those connections are to our filtered entities, include it
+      if (connectionCount >= 3) {
+        const hasConnectionToFiltered = graphData.relations.some((relation) => 
+          (relation.from === entity.name && connectedEntityNames.has(relation.to)) ||
+          (relation.to === entity.name && connectedEntityNames.has(relation.from))
+        );
+        
+        if (hasConnectionToFiltered) {
+          connectedEntityNames.add(entity.name);
+        }
       }
     });
 
@@ -519,9 +589,30 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     const allEntityNames = new Set(filteredEntities.map((entity) => entity.name));
 
     // Filter relations based on relation type and entity names (now includes connected entities)
+    // Enhanced: Ensure ALL relations involving preserved System entities are included
     let filteredRelations = graphData.relations.filter(
-      (relation) =>
-        allEntityNames.has(relation.from) && allEntityNames.has(relation.to)
+      (relation) => {
+        const fromExists = allEntityNames.has(relation.from);
+        const toExists = allEntityNames.has(relation.to);
+        
+        // Include relation if both entities exist in filtered set
+        if (fromExists && toExists) return true;
+        
+        // Also include relations where one entity is a preserved System entity
+        // and the other entity exists in our filtered set
+        const fromEntity = graphData.entities.find(e => e.name === relation.from);
+        const toEntity = graphData.entities.find(e => e.name === relation.to);
+        
+        const fromIsSystem = fromEntity?.entityType === "System";
+        const toIsSystem = toEntity?.entityType === "System";
+        
+        // Include if a System entity is connected to any filtered entity
+        if ((fromIsSystem && toExists) || (toIsSystem && fromExists)) {
+          return true;
+        }
+        
+        return false;
+      }
     );
 
     if (filterRelationType !== "All") {
@@ -779,9 +870,9 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           return false;
         });
         
-        // Apply visual hierarchy colors, but preserve System entity colors (like CodingKnowledge)
+        // Apply visual hierarchy colors, but preserve System entity colors (like CollectiveKnowledge)
         if (d.entityType === "System") {
-          return "#3cb371"; // Green for System entities (CodingKnowledge, etc.)
+          return "#3cb371"; // Green for System entities (CollectiveKnowledge, etc.)
         } else if (isProject) {
           return "#1e90ff"; // Blue for projects
         } else if (isKeyInsight) {
@@ -1135,7 +1226,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
             />
             <label
               htmlFor="file-upload"
-              className="mt-2 py-2 px-6 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-md cursor-pointer transition-colors flex items-center"
+              className="mt-2 py-2 px-6 bg-slate-700 hover:bg-slate-800 text-white font-medium rounded-md cursor-pointer transition-colors flex items-center"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -1155,7 +1246,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           </div>
 
           <div className="mt-8 text-center">
-            <h3 className="flex items-center justify-center font-medium mb-3 text-purple-800">
+            <h3 className="flex items-center justify-center font-medium mb-3 text-slate-800">
               <svg 
                 className="w-5 h-5 mr-2" 
                 xmlns="http://www.w3.org/2000/svg" 
@@ -1166,7 +1257,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               DDD Coding Insights Format:
             </h3>
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 inline-block text-left">
-              <div className="flex items-center mb-2 text-purple-800">
+              <div className="flex items-center mb-2 text-slate-800">
                 <svg
                   className="w-5 h-5 mr-2"
                   viewBox="0 0 24 24"
@@ -1184,7 +1275,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                 • Each line is a separate JSON object (entities/relations)
               </p>
 
-              <div className="flex items-center mb-2 text-purple-800">
+              <div className="flex items-center mb-2 text-slate-800">
                 <svg
                   className="w-5 h-5 mr-2"
                   viewBox="0 0 24 24"
@@ -1238,18 +1329,16 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   &rarr;
                 </button>
                 <svg
-                  className="w-8 h-8 text-purple-700"
+                  className="w-8 h-8 text-slate-700"
                   xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
+                  viewBox="0 0 32 32"
+                  fill="currentColor"
                 >
-                  <path
-                    fill="none"
-                    stroke="#9370db"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"
-                  />
+                  <circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z"/>
+                  <circle cx="11.5" cy="11.5" r="1.5" fill="currentColor"/>
+                  <circle cx="20.5" cy="11.5" r="1.5" fill="currentColor"/>
+                  <circle cx="16" cy="20.5" r="1.5" fill="currentColor"/>
                 </svg>
                 <h1 className="text-xl font-bold">
                   DDD Coding Insights Visualizer
@@ -1257,7 +1346,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               </div>
               <button
                 onClick={resetVisualization}
-                className="py-1 px-4 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors flex items-center"
+                className="py-1 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors flex items-center"
               >
                 <svg 
                   className="w-4 h-4 mr-1" 
@@ -1271,16 +1360,16 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+              <div className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full text-sm font-medium">
                 {stats.entityCount} Entities
               </div>
-              <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium border-2 border-purple-200">
+              <div className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full text-sm font-medium border-2 border-slate-200">
                 {stats.relationCount} Relations
               </div>
-              <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+              <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-sm font-medium">
                 {stats.entityTypeCount} Entity Types
               </div>
-              <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium border-2 border-purple-100">
+              <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-sm font-medium border-2 border-slate-100">
                 {stats.relationTypeCount} Relation Types
               </div>
             </div>
@@ -1366,16 +1455,16 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
             </div>
 
             {selectedNode && (
-              <div className="w-1/3 p-4 bg-purple-50 border-l border-purple-200 overflow-y-auto">
+              <div className="w-1/3 p-4 bg-slate-50 border-l border-slate-200 overflow-y-auto">
                 <div className="flex items-center mb-3">
                   <svg 
-                    className="w-5 h-5 mr-2 text-purple-600" 
+                    className="w-5 h-5 mr-2 text-slate-600" 
                     xmlns="http://www.w3.org/2000/svg" 
                     viewBox="0 0 24 24"
                   >
                     <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
                   </svg>
-                  <span className="text-sm font-medium text-purple-600">Entity Details</span>
+                  <span className="text-sm font-medium text-slate-600">Entity Details</span>
                 </div>
                 <h2 className="text-lg font-bold mb-2">{selectedNode.name}</h2>
                 <p className="text-sm text-gray-600 mb-4">
@@ -1384,7 +1473,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
 
                 {selectedNode.observations && (
                   <>
-                    <h3 className="font-bold text-purple-800 mb-2 flex items-center">
+                    <h3 className="font-bold text-slate-800 mb-2 flex items-center">
                       <svg
                         className="w-4 h-4 mr-1"
                         viewBox="0 0 24 24"

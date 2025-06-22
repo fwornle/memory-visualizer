@@ -152,9 +152,9 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
         onMouseLeave={() => setIsHovering(false)}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+        <div className="bg-gradient-to-r from-slate-600 to-slate-700 text-white p-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold">Knowledge Base Teams</h3>
+            <h3 className="text-xl font-semibold">Knowledge Base Views</h3>
             <button
               onClick={() => setIsOpen(false)}
               className="text-white hover:text-gray-200 transition-colors"
@@ -164,13 +164,29 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
               </svg>
             </button>
           </div>
-          <p className="text-blue-100 text-sm mt-2">
-            Select teams to compose your knowledge view
+          <p className="text-slate-100 text-sm mt-2">
+            Select views to compose your knowledge display
           </p>
         </div>
 
         {/* Content */}
         <div className="p-6 h-full overflow-y-auto">
+          {/* Select/Deselect All Buttons */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setSelectedTeams(availableTeams.map(t => t.name))}
+              className="flex-1 py-2 px-3 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded transition-colors"
+            >
+              Select All
+            </button>
+            <button
+              onClick={() => setSelectedTeams([])}
+              className="flex-1 py-2 px-3 bg-gray-400 hover:bg-gray-500 text-white text-sm font-medium rounded transition-colors"
+            >
+              Deselect All
+            </button>
+          </div>
+
           {/* Team selection */}
           <div className="space-y-3 mb-6">
             {availableTeams.map(team => (
@@ -182,12 +198,12 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
                   type="checkbox"
                   checked={selectedTeams.includes(team.name)}
                   onChange={() => handleTeamToggle(team.name)}
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 focus:ring-2"
+                  className="w-5 h-5 text-slate-600 rounded focus:ring-slate-500 focus:ring-2"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-900">{team.displayName}</span>
-                    <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                    <span className="text-sm font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded-full">
                       {team.entities}
                     </span>
                   </div>
@@ -203,12 +219,12 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="text-sm text-gray-700">
               <div className="flex justify-between items-center mb-2">
-                <span>Selected teams:</span>
+                <span>Selected views:</span>
                 <span className="font-semibold">{selectedTeams.length}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>Total entities:</span>
-                <span className="font-semibold text-blue-600">{getTotalEntities()}</span>
+                <span className="font-semibold text-slate-600">{getTotalEntities()}</span>
               </div>
             </div>
           </div>
@@ -222,7 +238,7 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
                 ? 'bg-green-500 text-white cursor-not-allowed'
                 : selectedTeams.length === 0
                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:-translate-y-0.5'
+                : 'bg-slate-600 text-white hover:bg-slate-700 hover:shadow-lg transform hover:-translate-y-0.5'
             }`}
           >
             {loading ? (
@@ -251,7 +267,7 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
               <span className="font-medium">Current Environment:</span>
             </div>
             <code className="bg-white px-2 py-1 rounded border block">
-              CODING_TEAM={selectedTeams.length > 0 ? selectedTeams.join(',') : 'default'}
+              KNOWLEDGE_VIEW={selectedTeams.length > 0 ? selectedTeams.join(',') : 'default'}
             </code>
             <p className="mt-2 text-gray-400">
               Move mouse to left edge to open this panel
