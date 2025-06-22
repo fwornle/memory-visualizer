@@ -12,7 +12,7 @@ interface TeamSelectorProps {
   onTeamsChange?: (teams: string[]) => void;
 }
 
-export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => {
+export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTeamsChange }) => {
   const [availableTeams, setAvailableTeams] = useState<TeamInfo[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);

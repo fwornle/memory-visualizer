@@ -19,7 +19,6 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, id }) => {
         fontFamily: 'Arial, sans-serif',
         fontSize: 14,
         // Ensure diagrams fit properly
-        maxWidth: '100%',
         sequence: {
           diagramMarginX: 50,
           diagramMarginY: 10,

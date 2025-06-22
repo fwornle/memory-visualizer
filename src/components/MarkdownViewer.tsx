@@ -238,9 +238,10 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                     }
                     return <pre className="bg-gray-100 rounded p-4 overflow-x-auto" {...props}>{children}</pre>;
                   },
-                  code: ({node, inline, className, children, ...props}) => {
-                    // Handle inline code
-                    if (inline) {
+                  code: ({node, className, children, ...props}) => {
+                    // Handle inline code (check if we don't have a language class)
+                    const isInline = !className || !className.startsWith('language-');
+                    if (isInline) {
                       return <code className="bg-gray-100 px-1 rounded" {...props}>{children}</code>;
                     }
                     // Handle block code (fallback if not caught by pre)
@@ -309,7 +310,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                             }
                           }}
                           className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
-                          {...props}
+                          type="button"
                         >
                           {children}
                         </button>
@@ -324,7 +325,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                             onOpenMarkdown(href);
                           }}
                           className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
-                          {...props}
+                          type="button"
                         >
                           {children}
                         </button>
