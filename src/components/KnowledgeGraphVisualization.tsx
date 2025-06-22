@@ -1114,8 +1114,12 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         <div className="flex flex-col items-center justify-center h-screen bg-gray-50 p-8">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <svg className="w-24 h-24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+              <svg className="w-24 h-24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#475569">
+                <circle cx="16" cy="16" r="15" fill="none" stroke="#475569" strokeWidth="2"/>
+                <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z" fill="#475569"/>
+                <circle cx="11.5" cy="11.5" r="1.5" fill="#475569"/>
+                <circle cx="20.5" cy="11.5" r="1.5" fill="#475569"/>
+                <circle cx="16" cy="20.5" r="1.5" fill="#475569"/>
               </svg>
             </div>
             <h1 className="text-3xl font-bold mb-4">
@@ -1250,9 +1254,14 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               <svg 
                 className="w-5 h-5 mr-2" 
                 xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24"
+                viewBox="0 0 32 32"
+                fill="#475569"
               >
-                <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                <circle cx="16" cy="16" r="15" fill="none" stroke="#475569" strokeWidth="2"/>
+                <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z" fill="#475569"/>
+                <circle cx="11.5" cy="11.5" r="1.5" fill="#475569"/>
+                <circle cx="20.5" cy="11.5" r="1.5" fill="#475569"/>
+                <circle cx="16" cy="20.5" r="1.5" fill="#475569"/>
               </svg>
               DDD Coding Insights Format:
             </h3>
@@ -1351,9 +1360,14 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                 <svg 
                   className="w-4 h-4 mr-1" 
                   xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 24 24"
+                  viewBox="0 0 32 32"
+                  fill="currentColor"
                 >
-                  <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                  <circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z" fill="currentColor"/>
+                  <circle cx="11.5" cy="11.5" r="1.5" fill="currentColor"/>
+                  <circle cx="20.5" cy="11.5" r="1.5" fill="currentColor"/>
+                  <circle cx="16" cy="20.5" r="1.5" fill="currentColor"/>
                 </svg>
                 Upload New File
               </button>
@@ -1460,9 +1474,14 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   <svg 
                     className="w-5 h-5 mr-2 text-slate-600" 
                     xmlns="http://www.w3.org/2000/svg" 
-                    viewBox="0 0 24 24"
+                    viewBox="0 0 32 32"
+                    fill="currentColor"
                   >
-                    <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                    <circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z" fill="currentColor"/>
+                    <circle cx="11.5" cy="11.5" r="1.5" fill="currentColor"/>
+                    <circle cx="20.5" cy="11.5" r="1.5" fill="currentColor"/>
+                    <circle cx="16" cy="20.5" r="1.5" fill="currentColor"/>
                   </svg>
                   <span className="text-sm font-medium text-slate-600">Entity Details</span>
                 </div>
