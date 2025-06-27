@@ -290,6 +290,11 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Debug: Log search term changes
+  useEffect(() => {
+    console.log("🔍 searchTerm state changed to:", searchTerm);
+  }, [searchTerm]);
   const [filterEntityType, setFilterEntityType] = useState("All");
   const [filterRelationType, setFilterRelationType] = useState("All");
   const [isDragging, setIsDragging] = useState(false);
@@ -481,12 +486,18 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
+      console.log("🔍 Search term:", term);
+      console.log("🔍 Total entities before filter:", filteredEntities.length);
+      
       filteredEntities = filteredEntities.filter(
         (entity) =>
           entity.name.toLowerCase().includes(term) ||
           entity.entityType.toLowerCase().includes(term) ||
           entity.observations.some((obs) => obs.toLowerCase().includes(term))
       );
+      
+      console.log("🔍 Entities after search filter:", filteredEntities.length);
+      console.log("🔍 Filtered entity names:", filteredEntities.map(e => e.name));
     }
 
     if (filterEntityType !== "All") {
@@ -495,9 +506,9 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       );
     }
 
-    // ALWAYS include System entities if we have ANY filtered entities
-    // This ensures CollectiveKnowledge is always present when there are other nodes
-    if (filteredEntities.length > 0 && filterEntityType !== "System") {
+    // Include System entities only when NOT searching to maintain full graph structure
+    // During search, be much more selective to show only relevant results
+    if (filteredEntities.length > 0 && filterEntityType !== "System" && !searchTerm) {
       const systemEntities = graphData.entities.filter(
         (entity) => entity.entityType === "System"
       );
@@ -510,8 +521,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     }
     
     // Special case: If we still don't have CollectiveKnowledge but have other entities,
-    // create a placeholder CollectiveKnowledge entity to maintain graph structure
-    if (filteredEntities.length > 0 && !filteredEntities.some(e => e.name === "CollectiveKnowledge")) {
+    // create a placeholder CollectiveKnowledge entity to maintain graph structure (but not during search)
+    if (filteredEntities.length > 0 && !filteredEntities.some(e => e.name === "CollectiveKnowledge") && !searchTerm) {
       // Check if any relations reference CollectiveKnowledge
       const hasCollectiveKnowledgeRelations = graphData.relations.some(r => 
         r.from === "CollectiveKnowledge" || r.to === "CollectiveKnowledge"
@@ -531,53 +542,67 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     // Get entity names to filter relations
     const entityNames = new Set(filteredEntities.map((entity) => entity.name));
 
-    // Include entities that are connected to filtered entities (to prevent orphans) - ENHANCED VERSION
+    // Include connected entities - balance search precision with graph connectivity
     const connectedEntityNames = new Set(entityNames);
     
-    // First pass: Add directly connected entities
-    graphData.relations.forEach((relation) => {
-      if (entityNames.has(relation.from)) {
-        connectedEntityNames.add(relation.to);
+    if (searchTerm) {
+      // During search: Add CollectiveKnowledge if we have any matching patterns to maintain hub structure
+      if (filteredEntities.length > 0) {
+        const collectiveKnowledge = graphData.entities.find(e => e.name === "CollectiveKnowledge");
+        if (collectiveKnowledge && !connectedEntityNames.has("CollectiveKnowledge")) {
+          connectedEntityNames.add("CollectiveKnowledge");
+        }
       }
-      if (entityNames.has(relation.to)) {
-        connectedEntityNames.add(relation.from);
-      }
-    });
+      
+      // Add project entities that are directly connected to our filtered results to prevent isolation
+      graphData.relations.forEach((relation) => {
+        if (entityNames.has(relation.from)) {
+          const toEntity = graphData.entities.find(e => e.name === relation.to);
+          if (toEntity?.entityType === "Project") {
+            connectedEntityNames.add(relation.to);
+          }
+        }
+        if (entityNames.has(relation.to)) {
+          const fromEntity = graphData.entities.find(e => e.name === relation.from);
+          if (fromEntity?.entityType === "Project") {
+            connectedEntityNames.add(relation.from);
+          }
+        }
+      });
+    } else {
+      // When NOT searching, add all direct connections to maintain full graph structure
+      graphData.relations.forEach((relation) => {
+        if (entityNames.has(relation.from)) {
+          connectedEntityNames.add(relation.to);
+        }
+        if (entityNames.has(relation.to)) {
+          connectedEntityNames.add(relation.from);
+        }
+      });
+    }
 
-    // Second pass: Preserve important hub nodes (System entities and high-connectivity nodes)
-    // Also ensure System entities are ALWAYS included when they have connections to filtered entities
-    graphData.entities.forEach((entity) => {
-      // Always include System entities (like CollectiveKnowledge) if they have ANY connections to our filtered entities
-      if (entity.entityType === "System") {
-        // Check if this System entity has any connections to our filtered entities
-        const hasConnectionsToFiltered = graphData.relations.some((relation) => 
-          (relation.from === entity.name && connectedEntityNames.has(relation.to)) ||
-          (relation.to === entity.name && connectedEntityNames.has(relation.from))
-        );
+    // If NOT searching, also preserve important hub nodes and high-connectivity entities
+    if (!searchTerm) {
+      // Second pass: Preserve important hub nodes (System entities and high-connectivity nodes)
+      graphData.entities.forEach((entity) => {
+        // Include entities with high connectivity (connected to many other entities)
+        const connectionCount = graphData.relations.filter(
+          (relation) => relation.from === entity.name || relation.to === entity.name
+        ).length;
         
-        // Always add System entities that have connections to filtered nodes
-        if (hasConnectionsToFiltered || connectedEntityNames.size > 0) {
-          connectedEntityNames.add(entity.name);
+        // If an entity has 3+ connections and any of those connections are to our filtered entities, include it
+        if (connectionCount >= 3) {
+          const hasConnectionToFiltered = graphData.relations.some((relation) => 
+            (relation.from === entity.name && connectedEntityNames.has(relation.to)) ||
+            (relation.to === entity.name && connectedEntityNames.has(relation.from))
+          );
+          
+          if (hasConnectionToFiltered) {
+            connectedEntityNames.add(entity.name);
+          }
         }
-      }
-      
-      // Include entities with high connectivity (connected to many other entities)
-      const connectionCount = graphData.relations.filter(
-        (relation) => relation.from === entity.name || relation.to === entity.name
-      ).length;
-      
-      // If an entity has 3+ connections and any of those connections are to our filtered entities, include it
-      if (connectionCount >= 3) {
-        const hasConnectionToFiltered = graphData.relations.some((relation) => 
-          (relation.from === entity.name && connectedEntityNames.has(relation.to)) ||
-          (relation.to === entity.name && connectedEntityNames.has(relation.from))
-        );
-        
-        if (hasConnectionToFiltered) {
-          connectedEntityNames.add(entity.name);
-        }
-      }
-    });
+      });
+    }
 
     // Add connected entities to the filtered entities list
     const additionalEntities = graphData.entities.filter(
@@ -587,6 +612,12 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
 
     // Update entity names set to include connected entities
     const allEntityNames = new Set(filteredEntities.map((entity) => entity.name));
+    
+    // Debug: Log final results during search
+    if (searchTerm) {
+      console.log("🔍 FINAL entities to display:", filteredEntities.length);
+      console.log("🔍 FINAL entity names:", filteredEntities.map(e => e.name));
+    }
 
     // Filter relations based on relation type and entity names (now includes connected entities)
     // Enhanced: Ensure ALL relations involving preserved System entities are included
@@ -715,16 +746,23 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     // Store nodes and lookup map for navigation and recentering
     nodesRef.current = nodes;
     nodeMapRef.current = new Map(nodes.map((node) => [node.id, node]));
-    if (nodes.length === 0) return;
+    
+    // Always clear the previous graph, even if we have no nodes to show
+    const svgElement = svgRef.current;
+    d3.select(svgElement).selectAll("*").remove();
+    
+    // If no nodes, just show empty graph
+    if (nodes.length === 0) {
+      // Clear SVG and show empty state
+      svgElement.setAttribute("width", `${dimensions.width}px`);
+      svgElement.setAttribute("height", `${dimensions.height}px`);
+      return;
+    }
 
     const width = dimensions.width;
     const height = dimensions.height;
 
-    // Clear previous graph
-    const svgElement = svgRef.current;
-    d3.select(svgElement).selectAll("*").remove();
-
-    // Set explicit dimensions on the SVG element
+    // Set explicit dimensions on the SVG element (clearing already done above)
     svgElement.setAttribute("width", `${width}px`);
     svgElement.setAttribute("height", `${height}px`);
 
@@ -1386,6 +1424,14 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-sm font-medium border-2 border-slate-100">
                 {stats.relationTypeCount} Relation Types
               </div>
+              {searchTerm && (
+                <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium border-2 border-red-300">
+                  🔍 Searching: "{searchTerm}" - Showing {(() => {
+                    const { nodes } = getFilteredData();
+                    return nodes.length;
+                  })()} results
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1400,7 +1446,10 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   id="search"
                   type="text"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    console.log("📝 Search input onChange:", e.target.value);
+                    setSearchTerm(e.target.value);
+                  }}
                   placeholder="Search by name or content..."
                   className="w-full p-2 border border-gray-300 rounded"
                 />
