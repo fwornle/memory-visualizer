@@ -59,35 +59,76 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
   const fetchAvailableTeams = async () => {
     try {
       const response = await fetch('/api/available-teams');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       setAvailableTeams(data.available);
     } catch (err) {
-      console.error('Failed to fetch available teams:', err);
-      setError('Failed to load available teams');
+      console.warn('API not available, using fallback team list:', err);
+      // Fallback: provide default teams when API isn't available
+      setAvailableTeams([
+        {
+          name: 'coding',
+          displayName: 'Coding',
+          description: 'Core coding knowledge management',
+          entities: 0,
+          file: 'shared-memory-coding.json'
+        },
+        {
+          name: 'ui',
+          displayName: 'UI',
+          description: 'User interface patterns and frontend',
+          entities: 0,
+          file: 'shared-memory-ui.json'
+        },
+        {
+          name: 'resi',
+          displayName: 'ReSi',
+          description: 'Reprocessing and Simulation Framework',
+          entities: 0,
+          file: 'shared-memory-resi.json'
+        }
+      ]);
     }
   };
 
   const fetchCurrentTeams = async () => {
     try {
       const response = await fetch('/api/current-teams');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       setSelectedTeams(data.teams);
     } catch (err) {
-      console.error('Failed to fetch current teams:', err);
+      console.warn('API not available for current teams, using fallback:', err);
+      // Fallback: check localStorage or use default
+      try {
+        const stored = localStorage.getItem('selectedTeams');
+        if (stored) {
+          setSelectedTeams(JSON.parse(stored));
+        } else {
+          setSelectedTeams(['coding']); // Default to coding only
+        }
+      } catch (storageErr) {
+        setSelectedTeams(['coding']); // Default to coding only
+      }
     }
   };
 
-  const handleTeamToggle = (teamName: string) => {
-    setSelectedTeams(prev => {
-      if (prev.includes(teamName)) {
-        return prev.filter(t => t !== teamName);
-      } else {
-        return [...prev, teamName];
-      }
-    });
+  const handleTeamToggle = async (teamName: string) => {
+    const newSelectedTeams = selectedTeams.includes(teamName) 
+      ? selectedTeams.filter(t => t !== teamName)
+      : [...selectedTeams, teamName];
+    
+    setSelectedTeams(newSelectedTeams);
+    
+    // Auto-apply changes immediately
+    await applyChanges(newSelectedTeams);
   };
 
-  const handleApplyChanges = async () => {
+  const applyChanges = async (teams: string[]) => {
     setLoading(true);
     setError(null);
 
@@ -97,8 +138,12 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ teams: selectedTeams }),
+        body: JSON.stringify({ teams }),
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
       const data = await response.json();
 
@@ -112,17 +157,37 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
         setLoading(false);
       }
     } catch (err) {
-      setError('Failed to update teams');
-      console.error('Failed to update teams:', err);
-      setLoading(false);
+      // Handle API failures gracefully
+      console.warn('API call failed, trying fallback approach:', err);
+      
+      // Fallback: Update localStorage and reload
+      try {
+        localStorage.setItem('selectedTeams', JSON.stringify(teams));
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } catch (storageErr) {
+        setError('Failed to update teams - both API and localStorage failed');
+        console.error('Fallback storage failed:', storageErr);
+        setLoading(false);
+      }
     }
   };
 
+
   const getTotalEntities = () => {
-    return selectedTeams.reduce((total, teamName) => {
+    // Sum insight counts (patterns), but account for shared entities like CollectiveKnowledge
+    const insightCount = selectedTeams.reduce((total, teamName) => {
       const team = availableTeams.find(t => t.name === teamName);
       return total + (team?.entities || 0);
     }, 0);
+    
+    // Add 1 for CollectiveKnowledge (shared across all teams)
+    // Add project count (1 per selected team)
+    const sharedEntities = selectedTeams.length > 0 ? 1 : 0; // CollectiveKnowledge
+    const projectEntities = selectedTeams.length; // One project per team
+    
+    return insightCount + sharedEntities + projectEntities;
   };
 
   return (
@@ -174,14 +239,23 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
           {/* Select/Deselect All Buttons */}
           <div className="flex gap-2 mb-4">
             <button
-              onClick={() => setSelectedTeams(availableTeams.map(t => t.name))}
-              className="flex-1 py-2 px-3 bg-slate-600 hover:bg-slate-700 text-white text-sm font-medium rounded transition-colors"
+              onClick={async () => {
+                const allTeams = availableTeams.map(t => t.name);
+                setSelectedTeams(allTeams);
+                await applyChanges(allTeams);
+              }}
+              disabled={loading}
+              className="flex-1 py-2 px-3 bg-slate-600 hover:bg-slate-700 disabled:bg-gray-300 text-white text-sm font-medium rounded transition-colors"
             >
               Select All
             </button>
             <button
-              onClick={() => setSelectedTeams([])}
-              className="flex-1 py-2 px-3 bg-gray-400 hover:bg-gray-500 text-white text-sm font-medium rounded transition-colors"
+              onClick={async () => {
+                setSelectedTeams([]);
+                await applyChanges([]);
+              }}
+              disabled={loading}
+              className="flex-1 py-2 px-3 bg-gray-400 hover:bg-gray-500 disabled:bg-gray-300 text-white text-sm font-medium rounded transition-colors"
             >
               Deselect All
             </button>
@@ -198,7 +272,8 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
                   type="checkbox"
                   checked={selectedTeams.includes(team.name)}
                   onChange={() => handleTeamToggle(team.name)}
-                  className="w-5 h-5 text-slate-600 rounded focus:ring-slate-500 focus:ring-2"
+                  disabled={loading}
+                  className="w-5 h-5 text-slate-600 rounded focus:ring-slate-500 focus:ring-2 disabled:opacity-50"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
@@ -229,30 +304,30 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
             </div>
           </div>
 
-          {/* Apply button */}
-          <button
-            onClick={handleApplyChanges}
-            disabled={loading || selectedTeams.length === 0}
-            className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-              loading
-                ? 'bg-green-500 text-white cursor-not-allowed'
-                : selectedTeams.length === 0
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-slate-600 text-white hover:bg-slate-700 hover:shadow-lg transform hover:-translate-y-0.5'
-            }`}
-          >
-            {loading ? (
+          {/* Status indicator */}
+          {loading && (
+            <div className="w-full py-3 px-4 rounded-lg bg-green-500 text-white font-medium">
               <div className="flex items-center justify-center space-x-2">
                 <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>Applied Successfully!</span>
+                <span>Applying Changes...</span>
               </div>
-            ) : (
-              'Apply Selection'
-            )}
-          </button>
+            </div>
+          )}
+          
+          {!loading && selectedTeams.length === 0 && (
+            <div className="w-full py-3 px-4 rounded-lg bg-gray-100 text-gray-600 font-medium text-center">
+              Select at least one view to display knowledge
+            </div>
+          )}
+          
+          {!loading && selectedTeams.length > 0 && (
+            <div className="w-full py-3 px-4 rounded-lg bg-blue-50 text-blue-700 font-medium text-center">
+              ✓ Changes applied automatically
+            </div>
+          )}
 
           {/* Error display */}
           {error && (

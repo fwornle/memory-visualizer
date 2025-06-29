@@ -53,14 +53,14 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_get_current_teams(self):
         """Get currently selected teams from KNOWLEDGE_VIEW env var."""
-        teams_env = os.environ.get('KNOWLEDGE_VIEW', 'coding')  # Default to coding
+        teams_env = os.environ.get('KNOWLEDGE_VIEW', 'coding')  # Default to coding only
         
         # Parse teams similar to VKB server
         teams = teams_env.replace('{', '').replace('}', '').split(',')
         teams = [t.strip() for t in teams if t.strip()]
         
         if not teams:
-            teams = ['coding']  # Default to coding team
+            teams = ['coding']  # Default to coding only
         
         self.send_json_response({'teams': teams, 'raw': teams_env})
     
@@ -99,7 +99,10 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 with open(filepath, 'r') as f:
                     data = json.load(f)
-                    entity_count = len(data.get('entities', []))
+                    # Count only insight entities (patterns), exclude System and Project entities
+                    entities = data.get('entities', [])
+                    insight_types = ['TransferablePattern', 'TechnicalPattern', 'WorkflowPattern']
+                    entity_count = len([e for e in entities if e.get('entityType') in insight_types])
                     display_name = data.get('displayName', team.title())
                     description = data.get('description', f'{display_name} knowledge base')
                     team_info.append({
@@ -146,24 +149,53 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             vkb_cli = os.path.join(coding_path, 'bin', 'vkb-cli.js')
             
-            # Call vkb data processor
-            result = subprocess.run(
-                ['node', vkb_cli, 'data', 'process'],
-                capture_output=True,
-                text=True,
-                env=os.environ
-            )
-            
-            if result.returncode == 0:
-                self.send_json_response({
-                    'success': True,
-                    'teams': teams,
-                    'message': f'Switched to teams: {teams_str}'
-                })
-            else:
+            # Verify VKB CLI exists
+            if not os.path.exists(vkb_cli):
                 self.send_json_response({
                     'success': False,
-                    'error': result.stderr or 'Failed to process data'
+                    'error': f'VKB CLI not found at {vkb_cli}'
+                }, status_code=500)
+                return
+            
+            # Prepare environment with updated KNOWLEDGE_VIEW
+            process_env = os.environ.copy()
+            process_env['KNOWLEDGE_VIEW'] = teams_str
+            print(f"Setting KNOWLEDGE_VIEW to: {teams_str}", file=sys.stderr)
+            
+            try:
+                # Call vkb data processor with timeout and better error handling
+                result = subprocess.run(
+                    ['node', vkb_cli, 'data', 'process'],
+                    capture_output=True,
+                    text=True,
+                    env=process_env,
+                    timeout=30,  # 30 second timeout
+                    cwd=coding_path
+                )
+                
+                if result.returncode == 0:
+                    self.send_json_response({
+                        'success': True,
+                        'teams': teams,
+                        'message': f'Switched to teams: {teams_str}'
+                    })
+                else:
+                    error_msg = result.stderr.strip() if result.stderr else 'Unknown error'
+                    print(f"VKB CLI error (code {result.returncode}): {error_msg}", file=sys.stderr)
+                    print(f"VKB CLI stdout: {result.stdout}", file=sys.stderr)
+                    self.send_json_response({
+                        'success': False,
+                        'error': f'Data processing failed: {error_msg}'
+                    }, status_code=500)
+            except subprocess.TimeoutExpired:
+                self.send_json_response({
+                    'success': False,
+                    'error': 'Data processing timed out after 30 seconds'
+                }, status_code=500)
+            except Exception as subprocess_error:
+                self.send_json_response({
+                    'success': False,
+                    'error': f'Subprocess error: {str(subprocess_error)}'
                 }, status_code=500)
                 
         except Exception as e:
