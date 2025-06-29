@@ -298,7 +298,7 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
                 <span className="font-semibold">{selectedTeams.length}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span>Total entities:</span>
+                <span>Total insights:</span>
                 <span className="font-semibold text-slate-600">{getTotalEntities()}</span>
               </div>
             </div>
