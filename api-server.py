@@ -38,6 +38,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_get_current_teams()
         elif parsed.path == '/api/available-teams':
             self.handle_get_available_teams()
+        elif parsed.path == '/health':
+            self.handle_health_check()
         else:
             # Serve static files
             super().do_GET()
@@ -212,6 +214,52 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(response)))
         self.end_headers()
         self.wfile.write(response.encode())
+    
+    def handle_health_check(self):
+        """Handle health check endpoint for monitoring."""
+        import time
+        import psutil
+        
+        # Get basic system info
+        health_info = {
+            'status': 'healthy',
+            'timestamp': time.time(),
+            'server': {
+                'port': int(os.environ.get('PORT', 8080)),
+                'pid': os.getpid(),
+                'uptime': time.time() - getattr(self.server, 'start_time', time.time())
+            },
+            'system': {
+                'cpu_percent': psutil.cpu_percent() if hasattr(psutil, 'cpu_percent') else 0,
+                'memory_percent': psutil.virtual_memory().percent if hasattr(psutil, 'virtual_memory') else 0
+            }
+        }
+        
+        # Check knowledge base files
+        kb_path = os.environ.get('CODING_KB_PATH')
+        if not kb_path:
+            kb_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        kb_files = []
+        try:
+            for filename in os.listdir(kb_path):
+                if filename.startswith('shared-memory-') and filename.endswith('.json'):
+                    filepath = os.path.join(kb_path, filename)
+                    if os.path.exists(filepath):
+                        kb_files.append({
+                            'name': filename,
+                            'size': os.path.getsize(filepath),
+                            'last_modified': os.path.getmtime(filepath)
+                        })
+        except Exception as e:
+            health_info['warning'] = f'Could not check knowledge base files: {str(e)}'
+        
+        health_info['knowledge_base'] = {
+            'path': kb_path,
+            'files': kb_files
+        }
+        
+        self.send_json_response(health_info)
     
     def log_message(self, format, *args):
         """Override to provide cleaner log messages."""
