@@ -218,7 +218,13 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def handle_health_check(self):
         """Handle health check endpoint for monitoring."""
         import time
-        import psutil
+        
+        # Try to import psutil, but don't fail if it's not available
+        try:
+            import psutil
+            psutil_available = True
+        except ImportError:
+            psutil_available = False
         
         # Get basic system info
         health_info = {
@@ -230,8 +236,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'uptime': time.time() - getattr(self.server, 'start_time', time.time())
             },
             'system': {
-                'cpu_percent': psutil.cpu_percent() if hasattr(psutil, 'cpu_percent') else 0,
-                'memory_percent': psutil.virtual_memory().percent if hasattr(psutil, 'virtual_memory') else 0
+                'cpu_percent': psutil.cpu_percent() if psutil_available else 0,
+                'memory_percent': psutil.virtual_memory().percent if psutil_available else 0
             }
         }
         
