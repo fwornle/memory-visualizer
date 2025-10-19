@@ -178,6 +178,10 @@ interface Entity {
   entityType: string;
   observations: string[];
   type: string;
+  metadata?: {
+    source?: 'batch' | 'online';
+    [key: string]: any;
+  };
 }
 
 interface Relation {
@@ -185,6 +189,10 @@ interface Relation {
   to: string;
   relationType: string;
   type: string;
+  metadata?: {
+    source?: 'batch' | 'online';
+    [key: string]: any;
+  };
 }
 
 interface GraphData {
@@ -197,6 +205,8 @@ interface Stats {
   relationCount: number;
   entityTypeCount: number;
   relationTypeCount: number;
+  batchCount?: number;
+  onlineCount?: number;
 }
 
 interface Node extends d3.SimulationNodeDatum {
@@ -204,6 +214,10 @@ interface Node extends d3.SimulationNodeDatum {
   name: string;
   entityType: string;
   observations: string[];
+  metadata?: {
+    source?: 'batch' | 'online';
+    [key: string]: any;
+  };
   x?: number;
   y?: number;
 }
@@ -301,6 +315,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+  // ENHANCED: Data source selection (batch, online, or combined)
+  const [dataSource, setDataSource] = useState<'batch' | 'online' | 'combined'>('batch');
 
   // Function to parse the JSON file
   const parseMemoryJson = (content: string) => {
@@ -345,11 +361,18 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       }
 
       setGraphData({ entities, relations });
+
+      // Calculate stats including source breakdown
+      const batchCount = entities.filter(e => e.metadata?.source === 'batch' || !e.metadata?.source).length;
+      const onlineCount = entities.filter(e => e.metadata?.source === 'online').length;
+
       setStats({
         entityCount: entities.length,
         relationCount: relations.length,
         entityTypeCount: new Set(entities.map((e) => e.entityType)).size,
         relationTypeCount: new Set(relations.map((r) => r.relationType)).size,
+        batchCount,
+        onlineCount,
       });
       setErrorMessage("");
       setIsLoading(false);
@@ -437,31 +460,39 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     };
   }, [handlePaste]);
 
-  // Automatically load memory.json on mount
+  // Automatically load memory.json based on data source selection
   useEffect(() => {
     const loadMemoryJson = async () => {
       try {
         setIsLoading(true);
         setErrorMessage("");
-        
-        // Try to fetch the memory.json file from the same directory
-        const response = await fetch('/memory.json');
+
+        // Determine which file to load based on data source
+        let fileName = '/memory.json'; // default batch
+        if (dataSource === 'online') {
+          fileName = '/memory-online.json';
+        } else if (dataSource === 'combined') {
+          fileName = '/memory-combined.json';
+        }
+
+        // Try to fetch the appropriate memory file
+        const response = await fetch(fileName);
         if (response.ok) {
           const content = await response.text();
           parseMemoryJson(content);
-          console.log('Successfully loaded memory.json');
+          console.log(`Successfully loaded ${fileName}`);
         } else {
-          console.log('memory.json not found, waiting for manual upload');
+          console.log(`${fileName} not found, waiting for manual upload`);
           setIsLoading(false);
         }
       } catch (error) {
-        console.log('Could not auto-load memory.json:', error);
+        console.log('Could not auto-load memory file:', error);
         setIsLoading(false);
       }
     };
 
     loadMemoryJson();
-  }, []); // Run only on mount
+  }, [dataSource]); // Re-run when dataSource changes
 
   // Get unique entity types and relation types for filters
   const entityTypes = graphData
@@ -658,6 +689,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       name: entity.name,
       entityType: entity.entityType,
       observations: entity.observations,
+      metadata: entity.metadata,
       // Add these properties to satisfy SimulationNodeDatum
       index: undefined,
       x: undefined,
@@ -876,9 +908,16 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       .attr("class", "node-circle")
       .attr("r", 10)
       .attr("fill", (d) => {
+        // ENHANCED: Check data source first for visual distinction
+        const source = d.metadata?.source || 'batch';
+
+        // Base colors for data sources
+        const batchBaseColor = "#3b82f6"; // Blue for batch/manual knowledge
+        const onlineBaseColor = "#10b981"; // Green for online-learned knowledge
+
         // Determine visual hierarchy: Project -> Key Insight -> Derived Concept
         const isProject = d.entityType === "Project";
-        
+
         // Check if this node is a key insight (first-order child of a project)
         const isKeyInsight = !isProject && links.some(link => {
           const sourceNode = link.source as Node;
@@ -886,20 +925,20 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           return (sourceNode.entityType === "Project" && targetNode.id === d.id) ||
                  (targetNode.entityType === "Project" && sourceNode.id === d.id);
         });
-        
+
         // Check if this node is a derived concept (second-order child - connected to key insight, not project)
         const isDerivedConcept = !isProject && !isKeyInsight && links.some(link => {
           const sourceNode = link.source as Node;
           const targetNode = link.target as Node;
-          const connectedNodeId = sourceNode.id === d.id ? targetNode.id : 
+          const connectedNodeId = sourceNode.id === d.id ? targetNode.id :
                                   targetNode.id === d.id ? sourceNode.id : null;
-          
+
           if (connectedNodeId) {
             // Check if the connected node is a key insight
             return links.some(innerLink => {
               const innerSource = innerLink.source as Node;
               const innerTarget = innerLink.target as Node;
-              const connectedNodeIsKeyInsight = 
+              const connectedNodeIsKeyInsight =
                 (innerSource.entityType === "Project" && innerTarget.id === connectedNodeId) ||
                 (innerTarget.entityType === "Project" && innerSource.id === connectedNodeId);
               return connectedNodeIsKeyInsight;
@@ -907,31 +946,46 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           }
           return false;
         });
-        
-        // Apply visual hierarchy colors, but preserve System entity colors (like CollectiveKnowledge)
+
+        // Apply colors based on source and hierarchy
         if (d.entityType === "System") {
+          // System entities get a neutral color that works for both sources
           return "#3cb371"; // Green for System entities (CollectiveKnowledge, etc.)
-        } else if (isProject) {
-          return "#1e90ff"; // Blue for projects
-        } else if (isKeyInsight) {
-          return "#87ceeb"; // Faint blue for key insights (SkyBlue)
-        } else if (isDerivedConcept) {
-          return "#ccc"; // Gray for derived concepts
+        } else if (source === 'online') {
+          // Online knowledge: Use green color scheme
+          if (isProject) {
+            return "#059669"; // Dark green for online projects
+          } else if (isKeyInsight) {
+            return "#34d399"; // Medium green for online key insights
+          } else if (isDerivedConcept) {
+            return "#a7f3d0"; // Light green for online derived concepts
+          } else {
+            return onlineBaseColor; // Base green for other online nodes
+          }
         } else {
-          // Fallback to entity type colors for other nodes
-          const typeColors: Record<string, string> = {
-            Memory: "#ff8c00",
-            Research: "#9370db",
-            FileCategories: "#4682b4",
-            ScanRecord: "#cd5c5c",
-            FileGroup: "#20b2aa",
-            ActionPlan: "#ff6347",
-            PatternLibrary: "#9acd32",
-            UserPreference: "#ff69b4",
-            Use_Case: "#ff7f50",
-            Strategy: "#8a2be2",
-          };
-          return typeColors[d.entityType] || "#ccc";
+          // Batch knowledge: Use blue color scheme (existing behavior)
+          if (isProject) {
+            return "#1e90ff"; // Blue for batch projects
+          } else if (isKeyInsight) {
+            return "#87ceeb"; // Sky blue for batch key insights
+          } else if (isDerivedConcept) {
+            return "#ccc"; // Gray for batch derived concepts
+          } else {
+            // Fallback to entity type colors for other batch nodes
+            const typeColors: Record<string, string> = {
+              Memory: "#ff8c00",
+              Research: "#9370db",
+              FileCategories: "#4682b4",
+              ScanRecord: "#cd5c5c",
+              FileGroup: "#20b2aa",
+              ActionPlan: "#ff6347",
+              PatternLibrary: "#9acd32",
+              UserPreference: "#ff69b4",
+              Use_Case: "#ff7f50",
+              Strategy: "#8a2be2",
+            };
+            return typeColors[d.entityType] || batchBaseColor;
+          }
         }
       })
       .attr("stroke", "#fff")
@@ -1424,6 +1478,16 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               <div className="bg-slate-50 text-slate-700 px-3 py-1 rounded-full text-sm font-medium border-2 border-slate-100">
                 {stats.relationTypeCount} Relation Types
               </div>
+              {stats.batchCount !== undefined && stats.batchCount > 0 && (
+                <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                  📘 {stats.batchCount} Batch
+                </div>
+              )}
+              {stats.onlineCount !== undefined && stats.onlineCount > 0 && (
+                <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                  🌐 {stats.onlineCount} Online
+                </div>
+              )}
               {searchTerm && (
                 <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium border-2 border-red-300">
                   🔍 Searching: "{searchTerm}" - Showing {(() => {
@@ -1432,6 +1496,48 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   })()} results
                 </div>
               )}
+            </div>
+
+            {/* ENHANCED: Data Source Selector */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Knowledge Source:
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="dataSource"
+                    value="batch"
+                    checked={dataSource === 'batch'}
+                    onChange={(e) => setDataSource(e.target.value as 'batch' | 'online' | 'combined')}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">📘 Batch (Manual)</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="dataSource"
+                    value="online"
+                    checked={dataSource === 'online'}
+                    onChange={(e) => setDataSource(e.target.value as 'batch' | 'online' | 'combined')}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">🌐 Online (Auto-learned)</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="dataSource"
+                    value="combined"
+                    checked={dataSource === 'combined'}
+                    onChange={(e) => setDataSource(e.target.value as 'batch' | 'online' | 'combined')}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">🔄 Combined (Both)</span>
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1497,6 +1603,33 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                 </select>
               </div>
             </div>
+
+            {/* ENHANCED: Legend for color coding */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Node Colors:</h3>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                  <span>Batch Knowledge (Manual)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                  <span>Online Knowledge (Auto-learned)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-blue-700 mr-2"></div>
+                  <span>Project (Batch)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full bg-green-700 mr-2"></div>
+                  <span>Project (Online)</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 rounded-full" style={{backgroundColor: "#3cb371"}}></div>
+                  <span className="ml-2">System Entity</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div
@@ -1535,9 +1668,34 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   <span className="text-sm font-medium text-slate-600">Entity Details</span>
                 </div>
                 <h2 className="text-lg font-bold mb-2">{selectedNode.name}</h2>
-                <p className="text-sm text-gray-600 mb-4">
-                  Type: {selectedNode.entityType}
-                </p>
+                <div className="mb-4 space-y-1">
+                  <p className="text-sm text-gray-600">
+                    Type: <span className="font-medium">{selectedNode.entityType}</span>
+                  </p>
+                  {selectedNode.metadata?.source && (
+                    <p className="text-sm">
+                      Source: {selectedNode.metadata.source === 'online' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          🌐 Online (Auto-learned)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          📘 Batch (Manual)
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {selectedNode.metadata?.confidence !== undefined && (
+                    <p className="text-sm text-gray-600">
+                      Confidence: <span className="font-medium">{(selectedNode.metadata.confidence * 100).toFixed(0)}%</span>
+                    </p>
+                  )}
+                  {selectedNode.metadata?.extractedAt && (
+                    <p className="text-xs text-gray-500">
+                      Extracted: {new Date(selectedNode.metadata.extractedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
 
                 {selectedNode.observations && (
                   <>
