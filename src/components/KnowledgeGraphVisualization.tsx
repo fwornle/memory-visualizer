@@ -116,16 +116,19 @@ const renderTextWithLinks = (text: string, onOpenMarkdown: (filePath: string) =>
 };
 
 // Helper function to render observations with special handling for reference lists
-const renderObservations = (observations: string[], onOpenMarkdown: (filePath: string) => void) => {
+const renderObservations = (observations: (string | {content: string; type?: string; date?: string})[], onOpenMarkdown: (filePath: string) => void) => {
   console.log("🔍 renderObservations called with:", observations.length, "observations");
   console.log("🔍 ALL observations:", observations);
-  
+
   const result = [];
   let i = 0;
-  
+
   while (i < observations.length) {
-    const obs = observations[i];
-    
+    const obsRaw = observations[i];
+
+    // Normalize observation to string (handle both object and string formats)
+    const obs = typeof obsRaw === 'string' ? obsRaw : obsRaw.content || '';
+
     // Check if this observation starts with "References:" (single line format)
     if (obs.trim().startsWith("References:")) {
       console.log("🎯 Found References section at index", i, ":", obs);
@@ -178,6 +181,7 @@ interface Entity {
   entityType: string;
   observations: string[];
   type: string;
+  _source?: string; // Added to track data source (e.g., "database" for online, "shared-memory-*" for batch)
   metadata?: {
     source?: 'batch' | 'online';
     [key: string]: any;
@@ -214,6 +218,7 @@ interface Node extends d3.SimulationNodeDatum {
   name: string;
   entityType: string;
   observations: string[];
+  _source?: string; // Added to track data source (e.g., "database" for online, "shared-memory-*" for batch)
   metadata?: {
     source?: 'batch' | 'online';
     [key: string]: any;
@@ -316,7 +321,72 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   // ENHANCED: Data source selection (batch, online, or combined)
-  const [dataSource, setDataSource] = useState<'batch' | 'online' | 'combined'>('batch');
+  // Initially null to indicate not yet loaded from server config
+  const [dataSource, setDataSource] = useState<'batch' | 'online' | 'combined' | null>(null);
+  // Store raw unfiltered data for client-side filtering
+  const rawDataRef = useRef<{ entities: Entity[], relations: Relation[] } | null>(null);
+  const hasLoadedDataRef = useRef(false);
+
+  // Handler for dataSource changes - saves to localStorage for persistence across team changes
+  const handleDataSourceChange = (newSource: 'batch' | 'online' | 'combined') => {
+    setDataSource(newSource);
+    localStorage.setItem('vkb_dataSource', newSource);
+    console.log(`[VKB] Data source changed to: ${newSource} (saved to localStorage)`);
+  };
+
+  // Function to filter data based on dataSource mode
+  const filterDataBySource = (entities: Entity[], relations: Relation[], mode: 'batch' | 'online' | 'combined') => {
+    if (mode === 'combined') {
+      return { entities, relations };
+    }
+
+    let filteredEntities: Entity[];
+    if (mode === 'batch') {
+      // Batch mode: Keep only entities from shared-memory-*.json files
+      filteredEntities = entities.filter(e =>
+        e._source?.startsWith('shared-memory-') ||
+        (!e._source && e.metadata?.sourceType !== 'online')
+      );
+    } else {
+      // Online mode: Keep entities from database PLUS related System/Project entities
+      const onlineEntities = entities.filter(e =>
+        e._source === 'database' ||
+        e.metadata?.sourceType === 'online'
+      );
+
+      // Find System and Project entities that online entities relate to
+      const onlineEntityNames = new Set(onlineEntities.map(e => e.name));
+      const connectedEntityNames = new Set(onlineEntityNames);
+
+      // Add System and Project entities that are connected to online entities
+      relations.forEach(r => {
+        if (onlineEntityNames.has(r.from)) {
+          const toEntity = entities.find(e => e.name === r.to);
+          if (toEntity && (toEntity.entityType === 'System' || toEntity.entityType === 'Project')) {
+            connectedEntityNames.add(r.to);
+          }
+        }
+        if (onlineEntityNames.has(r.to)) {
+          const fromEntity = entities.find(e => e.name === r.from);
+          if (fromEntity && (fromEntity.entityType === 'System' || fromEntity.entityType === 'Project')) {
+            connectedEntityNames.add(r.from);
+          }
+        }
+      });
+
+      // Keep online entities plus connected System/Project entities
+      filteredEntities = entities.filter(e => connectedEntityNames.has(e.name));
+    }
+
+    // Filter relations to only include those between visible entities
+    const entityNames = new Set(filteredEntities.map(e => e.name));
+    const filteredRelations = relations.filter(r =>
+      entityNames.has(r.from) && entityNames.has(r.to)
+    );
+
+    console.log(`🔍 Filtered to ${mode} mode: ${filteredEntities.length} entities, ${filteredRelations.length} relations`);
+    return { entities: filteredEntities, relations: filteredRelations };
+  };
 
   // Function to parse the JSON file
   const parseMemoryJson = (content: string) => {
@@ -360,7 +430,13 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         return;
       }
 
-      setGraphData({ entities, relations });
+      // Store raw unfiltered data for client-side mode filtering
+      rawDataRef.current = { entities, relations };
+
+      // Apply filtering based on current dataSource mode
+      const mode = dataSource || 'combined';
+      const filtered = filterDataBySource(entities, relations, mode);
+      setGraphData(filtered);
 
       // Calculate stats including source breakdown
       // Batch: from shared-memory-*.json files (curated/manual knowledge)
@@ -468,31 +544,80 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     };
   }, [handlePaste]);
 
-  // Automatically load memory.json based on data source selection
+  // Fetch server configuration on mount to determine data source mode
   useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        // First, check if user has a saved preference in localStorage
+        const savedDataSource = localStorage.getItem('vkb_dataSource');
+        if (savedDataSource && ['batch', 'online', 'combined'].includes(savedDataSource)) {
+          setDataSource(savedDataSource as 'batch' | 'online' | 'combined');
+          console.log(`[VKB] Data source restored from localStorage: ${savedDataSource}`);
+          return; // Use saved preference, don't override with server config
+        }
+
+        // If no saved preference, fall back to server config
+        const response = await fetch('/api/config');
+        if (response.ok) {
+          const config = await response.json();
+          console.log('[VKB] Server config:', config);
+          // Set data source from server configuration
+          const serverDataSource = config.dataSource || 'batch';
+          setDataSource(serverDataSource as 'batch' | 'online' | 'combined');
+          console.log(`[VKB] Data source set to: ${serverDataSource}`);
+        } else {
+          console.warn('[VKB] Failed to fetch config, defaulting to batch mode');
+          setDataSource('batch');
+        }
+      } catch (error) {
+        console.warn('[VKB] Error fetching config, defaulting to batch mode:', error);
+        setDataSource('batch');
+      }
+    };
+
+    fetchConfig();
+  }, []); // Run once on mount
+
+  // Automatically load memory.json - ALWAYS load combined data for client-side filtering
+  useEffect(() => {
+    // Wait for dataSource to be set from config first, and only load once
+    if (dataSource === null || hasLoadedDataRef.current) {
+      return; // Will re-run when dataSource is set
+    }
+
     const loadMemoryJson = async () => {
       try {
         setIsLoading(true);
         setErrorMessage("");
 
-        // Determine which file to load based on data source
-        let fileName = '/memory.json'; // default batch
-        if (dataSource === 'online') {
-          fileName = '/memory-online.json';
-        } else if (dataSource === 'combined') {
-          fileName = '/memory-combined.json';
+        // ALWAYS load combined data - client-side filtering handles mode selection
+        // Try memory-combined.json first, fall back to memory.json
+        let content: string | null = null;
+
+        try {
+          const combinedResponse = await fetch('/memory-combined.json');
+          if (combinedResponse.ok) {
+            content = await combinedResponse.text();
+            console.log('✅ Loaded memory-combined.json for client-side filtering');
+          }
+        } catch {
+          // Fall back to memory.json
         }
 
-        // Try to fetch the appropriate memory file
-        const response = await fetch(fileName);
-        if (response.ok) {
-          const content = await response.text();
-          parseMemoryJson(content);
-          console.log(`Successfully loaded ${fileName}`);
-        } else {
-          console.log(`${fileName} not found, waiting for manual upload`);
-          setIsLoading(false);
+        if (!content) {
+          const response = await fetch('/memory.json');
+          if (response.ok) {
+            content = await response.text();
+            console.log('✅ Loaded memory.json (fallback) for client-side filtering');
+          } else {
+            console.log('⚠️ No memory files found, waiting for manual upload');
+            setIsLoading(false);
+            return;
+          }
         }
+
+        hasLoadedDataRef.current = true; // Mark as loaded
+        parseMemoryJson(content);
       } catch (error) {
         console.log('Could not auto-load memory file:', error);
         setIsLoading(false);
@@ -500,6 +625,36 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     };
 
     loadMemoryJson();
+  }, [dataSource]); // Re-run when dataSource is set
+
+  // Re-filter data when dataSource mode changes
+  useEffect(() => {
+    if (!rawDataRef.current || dataSource === null) return;
+
+    const { entities, relations } = rawDataRef.current;
+    const filtered = filterDataBySource(entities, relations, dataSource);
+    setGraphData(filtered);
+
+    // Update stats for filtered data
+    const batchCount = filtered.entities.filter(e =>
+      e._source?.startsWith('shared-memory-') ||
+      (!e._source && e.metadata?.sourceType !== 'online')
+    ).length;
+    const onlineCount = filtered.entities.filter(e =>
+      e._source === 'database' ||
+      e.metadata?.sourceType === 'online'
+    ).length;
+
+    setStats({
+      entityCount: filtered.entities.length,
+      relationCount: filtered.relations.length,
+      entityTypeCount: new Set(filtered.entities.map((e) => e.entityType)).size,
+      relationTypeCount: new Set(filtered.relations.map((r) => r.relationType)).size,
+      batchCount,
+      onlineCount,
+    });
+
+    console.log(`📊 Updated view to ${dataSource} mode: ${filtered.entities.length} entities, ${filtered.relations.length} relations`);
   }, [dataSource]); // Re-run when dataSource changes
 
   // Get unique entity types and relation types for filters
@@ -697,6 +852,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       name: entity.name,
       entityType: entity.entityType,
       observations: entity.observations,
+      _source: entity._source, // Preserve _source field for node coloring
       metadata: entity.metadata,
       // Add these properties to satisfy SimulationNodeDatum
       index: undefined,
@@ -916,18 +1072,28 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       .attr("class", "node-circle")
       .attr("r", 10)
       .attr("fill", (d) => {
-        // ENHANCED: Check data source first for visual distinction
-        const source = d.metadata?.source || 'batch';
+        // FIXED: Check entityType FIRST - System and Project have fixed colors regardless of source
+        // Only Pattern/knowledge nodes vary color by source (online=red, batch=blue)
 
-        // Base colors for data sources
+        // Infrastructure entities have fixed colors
+        if (d.entityType === "System") {
+          return "#3cb371"; // Medium sea green for System entities (CollectiveKnowledge, etc.)
+        }
+
+        if (d.entityType === "Project") {
+          return "#1e90ff"; // Dodger blue for ALL Project nodes (both online and batch)
+        }
+
+        // For Pattern/Knowledge nodes, determine source for color coding
+        const isOnline = d._source === 'database' || d.metadata?.source === 'online';
+        const source = isOnline ? 'online' : 'batch';
+
+        // Base colors for data sources (only used for Pattern nodes)
         const batchBaseColor = "#87ceeb"; // Light blue for batch/manual knowledge
         const onlineBaseColor = "#f8a5a5"; // Light red for online-learned knowledge
 
-        // Determine visual hierarchy: Project -> Key Insight -> Derived Concept
-        const isProject = d.entityType === "Project";
-
         // Check if this node is a key insight (first-order child of a project)
-        const isKeyInsight = !isProject && links.some(link => {
+        const isKeyInsight = links.some(link => {
           const sourceNode = link.source as Node;
           const targetNode = link.target as Node;
           return (sourceNode.entityType === "Project" && targetNode.id === d.id) ||
@@ -935,7 +1101,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         });
 
         // Check if this node is a derived concept (second-order child - connected to key insight, not project)
-        const isDerivedConcept = !isProject && !isKeyInsight && links.some(link => {
+        const isDerivedConcept = !isKeyInsight && links.some(link => {
           const sourceNode = link.source as Node;
           const targetNode = link.target as Node;
           const connectedNodeId = sourceNode.id === d.id ? targetNode.id :
@@ -955,15 +1121,10 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           return false;
         });
 
-        // Apply colors based on source and hierarchy
-        if (d.entityType === "System") {
-          // System entities get a neutral color that works for both sources
-          return "#3cb371"; // Medium sea green for System entities (CollectiveKnowledge, etc.)
-        } else if (source === 'online') {
+        // Apply colors based on source and hierarchy (for Pattern nodes only)
+        if (source === 'online') {
           // Online knowledge: Use light red color scheme
-          if (isProject) {
-            return "#dc143c"; // Crimson for online projects
-          } else if (isKeyInsight) {
+          if (isKeyInsight) {
             return "#f8a5a5"; // Light red for online key insights
           } else if (isDerivedConcept) {
             return "#ffc0cb"; // Pink for online derived concepts
@@ -972,9 +1133,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
           }
         } else {
           // Batch knowledge: Use light blue color scheme
-          if (isProject) {
-            return "#1e90ff"; // Dodger blue for batch projects
-          } else if (isKeyInsight) {
+          if (isKeyInsight) {
             return "#87ceeb"; // Sky blue for batch key insights
           } else if (isDerivedConcept) {
             return "#b0c4de"; // Light steel blue for batch derived concepts
@@ -991,6 +1150,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               UserPreference: "#ff69b4",
               Use_Case: "#ff7f50",
               Strategy: "#8a2be2",
+              Pattern: batchBaseColor, // Explicitly handle Pattern entityType
             };
             return typeColors[d.entityType] || batchBaseColor;
           }
@@ -1518,7 +1678,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                     name="dataSource"
                     value="batch"
                     checked={dataSource === 'batch'}
-                    onChange={(e) => setDataSource(e.target.value as 'batch' | 'online' | 'combined')}
+                    onChange={(e) => handleDataSourceChange(e.target.value as 'batch' | 'online' | 'combined')}
+                    disabled={dataSource === null}
                     className="mr-2"
                   />
                   <span className="text-sm">📘 Batch (Manual)</span>
@@ -1529,7 +1690,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                     name="dataSource"
                     value="online"
                     checked={dataSource === 'online'}
-                    onChange={(e) => setDataSource(e.target.value as 'batch' | 'online' | 'combined')}
+                    onChange={(e) => handleDataSourceChange(e.target.value as 'batch' | 'online' | 'combined')}
+                    disabled={dataSource === null}
                     className="mr-2"
                   />
                   <span className="text-sm">🌐 Online (Auto-learned)</span>
@@ -1540,7 +1702,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                     name="dataSource"
                     value="combined"
                     checked={dataSource === 'combined'}
-                    onChange={(e) => setDataSource(e.target.value as 'batch' | 'online' | 'combined')}
+                    onChange={(e) => handleDataSourceChange(e.target.value as 'batch' | 'online' | 'combined')}
+                    disabled={dataSource === null}
                     className="mr-2"
                   />
                   <span className="text-sm">🔄 Combined (Both)</span>

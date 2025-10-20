@@ -38,6 +38,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_get_current_teams()
         elif parsed.path == '/api/available-teams':
             self.handle_get_available_teams()
+        elif parsed.path == '/api/config':
+            self.handle_get_config()
         elif parsed.path == '/health':
             self.handle_health_check()
         else:
@@ -56,16 +58,26 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def handle_get_current_teams(self):
         """Get currently selected teams from KNOWLEDGE_VIEW env var."""
         teams_env = os.environ.get('KNOWLEDGE_VIEW', 'coding')  # Default to coding only
-        
+
         # Parse teams similar to VKB server
         teams = teams_env.replace('{', '').replace('}', '').split(',')
         teams = [t.strip() for t in teams if t.strip()]
-        
+
         if not teams:
             teams = ['coding']  # Default to coding only
-        
+
         self.send_json_response({'teams': teams, 'raw': teams_env})
-    
+
+    def handle_get_config(self):
+        """Get server configuration including data source mode."""
+        data_source = os.environ.get('VKB_DATA_SOURCE', 'batch')  # Default to batch
+        knowledge_view = os.environ.get('KNOWLEDGE_VIEW', 'coding')
+
+        self.send_json_response({
+            'dataSource': data_source,
+            'knowledgeView': knowledge_view
+        })
+
     def handle_get_available_teams(self):
         """Get list of available teams by scanning shared-memory-*.json files."""
         # Use CODING_KB_PATH if set, otherwise use the parent directory
@@ -292,6 +304,7 @@ def main():
             print(f"Serving HTTP with API on port {port} from directory '{os.getcwd()}'")
             print(f"Server URL: http://localhost:{port}")
             print("API endpoints:")
+            print("  GET  /api/config - Get server configuration (dataSource, knowledgeView)")
             print("  GET  /api/current-teams - Get current KNOWLEDGE_VIEW setting")
             print("  GET  /api/available-teams - List available team files")
             print("  POST /api/teams - Update team selection")
