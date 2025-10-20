@@ -363,8 +363,16 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       setGraphData({ entities, relations });
 
       // Calculate stats including source breakdown
-      const batchCount = entities.filter(e => e.metadata?.source === 'batch' || !e.metadata?.source).length;
-      const onlineCount = entities.filter(e => e.metadata?.source === 'online').length;
+      // Batch: from shared-memory-*.json files (curated/manual knowledge)
+      // Online: from database (auto-learned) or marked as online via metadata.sourceType
+      const batchCount = entities.filter(e =>
+        e._source?.startsWith('shared-memory-') ||
+        (!e._source && e.metadata?.sourceType !== 'online')
+      ).length;
+      const onlineCount = entities.filter(e =>
+        e._source === 'database' ||
+        e.metadata?.sourceType === 'online'
+      ).length;
 
       setStats({
         entityCount: entities.length,
@@ -912,8 +920,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         const source = d.metadata?.source || 'batch';
 
         // Base colors for data sources
-        const batchBaseColor = "#3b82f6"; // Blue for batch/manual knowledge
-        const onlineBaseColor = "#10b981"; // Green for online-learned knowledge
+        const batchBaseColor = "#87ceeb"; // Light blue for batch/manual knowledge
+        const onlineBaseColor = "#f8a5a5"; // Light red for online-learned knowledge
 
         // Determine visual hierarchy: Project -> Key Insight -> Derived Concept
         const isProject = d.entityType === "Project";
@@ -950,26 +958,26 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         // Apply colors based on source and hierarchy
         if (d.entityType === "System") {
           // System entities get a neutral color that works for both sources
-          return "#3cb371"; // Green for System entities (CollectiveKnowledge, etc.)
+          return "#3cb371"; // Medium sea green for System entities (CollectiveKnowledge, etc.)
         } else if (source === 'online') {
-          // Online knowledge: Use green color scheme
+          // Online knowledge: Use light red color scheme
           if (isProject) {
-            return "#059669"; // Dark green for online projects
+            return "#dc143c"; // Crimson for online projects
           } else if (isKeyInsight) {
-            return "#34d399"; // Medium green for online key insights
+            return "#f8a5a5"; // Light red for online key insights
           } else if (isDerivedConcept) {
-            return "#a7f3d0"; // Light green for online derived concepts
+            return "#ffc0cb"; // Pink for online derived concepts
           } else {
-            return onlineBaseColor; // Base green for other online nodes
+            return onlineBaseColor; // Base light red for other online nodes
           }
         } else {
-          // Batch knowledge: Use blue color scheme (existing behavior)
+          // Batch knowledge: Use light blue color scheme
           if (isProject) {
-            return "#1e90ff"; // Blue for batch projects
+            return "#1e90ff"; // Dodger blue for batch projects
           } else if (isKeyInsight) {
             return "#87ceeb"; // Sky blue for batch key insights
           } else if (isDerivedConcept) {
-            return "#ccc"; // Gray for batch derived concepts
+            return "#b0c4de"; // Light steel blue for batch derived concepts
           } else {
             // Fallback to entity type colors for other batch nodes
             const typeColors: Record<string, string> = {
@@ -1604,30 +1612,27 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
               </div>
             </div>
 
-            {/* ENHANCED: Legend for color coding */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Node Colors:</h3>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                  <span>Batch Knowledge (Manual)</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                  <span>Online Knowledge (Auto-learned)</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-blue-700 mr-2"></div>
-                  <span>Project (Batch)</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-green-700 mr-2"></div>
-                  <span>Project (Online)</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full" style={{backgroundColor: "#3cb371"}}></div>
-                  <span className="ml-2">System Entity</span>
-                </div>
+          </div>
+
+          {/* ENHANCED: Legend for color coding - positioned below header, right side */}
+          <div className="absolute top-16 right-4 p-3 bg-white/95 backdrop-blur rounded-lg border border-gray-300 shadow-lg z-10">
+            <h3 className="text-xs font-semibold text-gray-700 mb-2">Node Colors</h3>
+            <div className="flex flex-col gap-1.5 text-xs">
+              <div className="flex items-center whitespace-nowrap">
+                <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: "#87ceeb"}}></div>
+                <span className="ml-1.5">Batch (Manual)</span>
+              </div>
+              <div className="flex items-center whitespace-nowrap">
+                <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: "#f8a5a5"}}></div>
+                <span className="ml-1.5">Online (Auto)</span>
+              </div>
+              <div className="flex items-center whitespace-nowrap">
+                <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: "#1e90ff"}}></div>
+                <span className="ml-1.5">Project</span>
+              </div>
+              <div className="flex items-center whitespace-nowrap">
+                <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: "#3cb371"}}></div>
+                <span className="ml-1.5">System Entity</span>
               </div>
             </div>
           </div>
