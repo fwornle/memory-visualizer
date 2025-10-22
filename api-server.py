@@ -31,7 +31,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         """Handle GET requests including API endpoints."""
         parsed = urlparse(self.path)
-        
+
+        # Team management endpoints (existing)
         if parsed.path == '/api/teams':
             self.handle_get_teams()
         elif parsed.path == '/api/current-teams':
@@ -42,6 +43,13 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_get_config()
         elif parsed.path == '/health':
             self.handle_health_check()
+        # Database query endpoints (new)
+        elif parsed.path == '/api/entities':
+            self.handle_database_query('entities', parsed.query)
+        elif parsed.path == '/api/relations':
+            self.handle_database_query('relations', parsed.query)
+        elif parsed.path == '/api/stats':
+            self.handle_database_query('stats', parsed.query)
         else:
             # Serve static files
             super().do_GET()
@@ -227,6 +235,73 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response.encode())
     
+    def handle_database_query(self, query_type, query_params):
+        """Proxy database queries to Node.js backend."""
+        coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        query_script = os.path.join(coding_path, 'lib', 'vkb-server', 'db-query-cli.js')
+
+        if not os.path.exists(query_script):
+            self.send_json_response({
+                'error': 'Database query backend not available',
+                'message': f'db-query-cli.js not found at {query_script}'
+            }, status_code=503)
+            return
+
+        try:
+            # Parse query parameters
+            params = parse_qs(query_params) if query_params else {}
+
+            # Convert to JSON for CLI
+            params_json = {k: v[0] if len(v) == 1 else v for k, v in params.items()}
+
+            # Call Node.js CLI with query type and params
+            result = subprocess.run(
+                ['node', query_script, query_type, json.dumps(params_json)],
+                capture_output=True,
+                text=True,
+                timeout=10,  # 10 second timeout
+                cwd=coding_path
+            )
+
+            if result.returncode == 0:
+                # Parse and return JSON response
+                # Filter out debug logging lines that start with [DatabaseManager]
+                try:
+                    # Find the JSON line (last non-logging line)
+                    lines = result.stdout.strip().split('\n')
+                    json_line = None
+                    for line in reversed(lines):
+                        if not line.startswith('[') and line.strip():
+                            json_line = line
+                            break
+
+                    if json_line:
+                        response_data = json.loads(json_line)
+                        self.send_json_response(response_data)
+                    else:
+                        raise json.JSONDecodeError("No JSON found", result.stdout, 0)
+                except json.JSONDecodeError:
+                    self.send_json_response({
+                        'error': 'Invalid JSON response from database backend',
+                        'output': result.stdout
+                    }, status_code=500)
+            else:
+                error_msg = result.stderr.strip() if result.stderr else 'Unknown error'
+                self.send_json_response({
+                    'error': 'Database query failed',
+                    'message': error_msg
+                }, status_code=500)
+        except subprocess.TimeoutExpired:
+            self.send_json_response({
+                'error': 'Database query timed out',
+                'message': 'Query took longer than 10 seconds'
+            }, status_code=504)
+        except Exception as e:
+            self.send_json_response({
+                'error': 'Internal server error',
+                'message': str(e)
+            }, status_code=500)
+
     def handle_health_check(self):
         """Handle health check endpoint for monitoring."""
         import time

@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import * as d3 from "d3";
 import { TeamSelector } from "./TeamSelector";
+import { DatabaseClient } from "../api/databaseClient";
 
 interface KnowledgeGraphVisualizationProps {
   onOpenMarkdown: (filePath: string) => void;
@@ -327,6 +328,11 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   const rawDataRef = useRef<{ entities: Entity[], relations: Relation[] } | null>(null);
   const hasLoadedDataRef = useRef(false);
 
+  // Database client for querying knowledge
+  const dbClient = useRef(new DatabaseClient()).current;
+  const [useDatabase, setUseDatabase] = useState(false);
+  const [dbHealthy, setDbHealthy] = useState(false);
+
   // Handler for dataSource changes - saves to localStorage for persistence across team changes
   const handleDataSourceChange = (newSource: 'batch' | 'online' | 'combined') => {
     setDataSource(newSource);
@@ -386,6 +392,63 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
 
     console.log(`🔍 Filtered to ${mode} mode: ${filteredEntities.length} entities, ${filteredRelations.length} relations`);
     return { entities: filteredEntities, relations: filteredRelations };
+  };
+
+  // Function to load data from database
+  const loadFromDatabase = async (team?: string, source?: 'manual' | 'auto') => {
+    try {
+      setIsLoading(true);
+      setErrorMessage("");
+      console.log('📊 Loading knowledge from database...');
+
+      const graphData = await dbClient.loadKnowledgeGraph(team, source);
+
+      // Transform database format to component format
+      const entities: Entity[] = graphData.entities.map(e => ({
+        name: e.name,
+        entityType: e.entityType,
+        observations: e.observations || [],
+        type: 'entity',
+        _source: 'database',
+        metadata: {
+          source: source === 'manual' ? 'batch' : 'online',
+          team: e.team,
+          confidence: e.confidence,
+          lastModified: e.lastModified
+        }
+      }));
+
+      const relations: Relation[] = graphData.relations.map(r => ({
+        from: graphData.entities.find(e => e.id === r.source)?.name || r.source,
+        to: graphData.entities.find(e => e.id === r.target)?.name || r.target,
+        relationType: r.type,
+        type: 'relation',
+        metadata: {
+          source: source === 'manual' ? 'batch' : 'online',
+          confidence: r.confidence
+        }
+      }));
+
+      console.log(`✅ Loaded from database: ${entities.length} entities, ${relations.length} relations`);
+
+      // Store raw data for filtering
+      rawDataRef.current = { entities, relations };
+
+      // Apply data source filter if set
+      if (dataSource) {
+        const filtered = filterDataBySource(entities, relations, dataSource);
+        setGraphData(filtered);
+      } else {
+        setGraphData({ entities, relations });
+      }
+
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Failed to load from database:', error);
+      setErrorMessage(`Database load failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsLoading(false);
+      setDbHealthy(false);
+    }
   };
 
   // Function to parse the JSON file
@@ -578,14 +641,55 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     fetchConfig();
   }, []); // Run once on mount
 
-  // Automatically load memory.json - ALWAYS load combined data for client-side filtering
+  // Check database health on mount
   useEffect(() => {
-    // Wait for dataSource to be set from config first, and only load once
+    const checkDatabase = async () => {
+      try {
+        const health = await dbClient.checkHealth();
+        const healthy = health.status === 'healthy' && health.sqlite;
+        setDbHealthy(healthy);
+
+        if (healthy) {
+          console.log('✅ Database available - can use direct DB queries');
+          setUseDatabase(true); // Enable database mode
+        } else {
+          console.log('⚠️ Database unavailable - using JSON files only');
+        }
+      } catch (error) {
+        console.log('⚠️ Database health check failed - using JSON files only');
+        setDbHealthy(false);
+      }
+    };
+
+    checkDatabase();
+  }, []); // Run once on mount
+
+  // Automatically load data - prefer database if available, fall back to JSON
+  useEffect(() => {
+    // Wait for both dataSource and database health check
     if (dataSource === null || hasLoadedDataRef.current) {
-      return; // Will re-run when dataSource is set
+      return;
     }
 
-    const loadMemoryJson = async () => {
+    const loadData = async () => {
+      // If database is healthy and we're in online or combined mode, load from database
+      if (useDatabase && dbHealthy && (dataSource === 'online' || dataSource === 'combined')) {
+        console.log('📊 Loading from database (database mode)');
+        const sourceFilter = dataSource === 'online' ? 'auto' : undefined;
+        await loadFromDatabase(undefined, sourceFilter);
+        hasLoadedDataRef.current = true;
+      } else {
+        // Fall back to JSON loading
+        console.log('📊 Loading from JSON files (fallback mode)');
+        loadMemoryJson();
+      }
+    };
+
+    loadData();
+  }, [dataSource, useDatabase, dbHealthy]); // Re-run when any of these change
+
+  // Legacy: Load memory.json for JSON mode
+  const loadMemoryJson = async () => {
       try {
         setIsLoading(true);
         setErrorMessage("");
@@ -622,10 +726,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         console.log('Could not auto-load memory file:', error);
         setIsLoading(false);
       }
-    };
-
-    loadMemoryJson();
-  }, [dataSource]); // Re-run when dataSource is set
+  };
 
   // Re-filter data when dataSource mode changes
   useEffect(() => {
