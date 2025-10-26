@@ -12,7 +12,7 @@ interface TeamSelectorProps {
   onTeamsChange?: (teams: string[]) => void;
 }
 
-export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTeamsChange }) => {
+export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => {
   const [availableTeams, setAvailableTeams] = useState<TeamInfo[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,18 +101,28 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
       }
       const data = await response.json();
       setSelectedTeams(data.teams);
+      // Notify parent of initial selection
+      if (onTeamsChange) {
+        onTeamsChange(data.teams);
+      }
     } catch (err) {
       console.warn('API not available for current teams, using fallback:', err);
       // Fallback: check localStorage or use default
+      let teams: string[];
       try {
         const stored = localStorage.getItem('selectedTeams');
         if (stored) {
-          setSelectedTeams(JSON.parse(stored));
+          teams = JSON.parse(stored);
         } else {
-          setSelectedTeams(['coding']); // Default to coding only
+          teams = ['coding']; // Default to coding only
         }
       } catch (storageErr) {
-        setSelectedTeams(['coding']); // Default to coding only
+        teams = ['coding']; // Default to coding only
+      }
+      setSelectedTeams(teams);
+      // Notify parent of initial selection
+      if (onTeamsChange) {
+        onTeamsChange(teams);
       }
     }
   };
@@ -133,44 +143,30 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange: _onTe
     setError(null);
 
     try {
-      const response = await fetch('/api/teams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ teams }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Wait briefly to show success, then reload
-        setTimeout(() => {
-          window.location.reload();
-        }, 800);
-      } else {
-        setError(data.error || 'Failed to update teams');
-        setLoading(false);
-      }
-    } catch (err) {
-      // Handle API failures gracefully
-      console.warn('API call failed, trying fallback approach:', err);
-      
-      // Fallback: Update localStorage and reload
+      // Update server-side KNOWLEDGE_VIEW (optional - for persistence)
       try {
-        localStorage.setItem('selectedTeams', JSON.stringify(teams));
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-      } catch (storageErr) {
-        setError('Failed to update teams - both API and localStorage failed');
-        console.error('Fallback storage failed:', storageErr);
-        setLoading(false);
+        await fetch('/api/teams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teams }),
+        });
+      } catch (err) {
+        console.warn('Failed to update server KNOWLEDGE_VIEW, continuing with client-side filtering:', err);
       }
+
+      // Call parent callback to trigger re-query with new teams
+      if (onTeamsChange) {
+        onTeamsChange(teams);
+      }
+
+      // Show success briefly
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
+    } catch (err) {
+      setError('Failed to update teams');
+      console.error('Team update failed:', err);
+      setLoading(false);
     }
   };
 

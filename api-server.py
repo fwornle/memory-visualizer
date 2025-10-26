@@ -78,7 +78,9 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def handle_get_config(self):
         """Get server configuration including data source mode."""
-        data_source = os.environ.get('VKB_DATA_SOURCE', 'batch')  # Default to batch
+        # Phase 4: Default to 'online' mode (GraphDB direct queries)
+        # 'batch' mode is only for manually viewing exported JSON files
+        data_source = os.environ.get('VKB_DATA_SOURCE', 'online')
         knowledge_view = os.environ.get('KNOWLEDGE_VIEW', 'coding')
 
         self.send_json_response({
@@ -87,64 +89,80 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         })
 
     def handle_get_available_teams(self):
-        """Get list of available teams by scanning shared-memory-*.json files."""
-        # Use CODING_KB_PATH if set, otherwise use the parent directory
-        kb_path = os.environ.get('CODING_KB_PATH')
-        if not kb_path:
-            # Default to parent directory of this script (the coding repo)
-            kb_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        
-        available_teams = []
-        
-        # No more default - only scan for team-specific files
+        """Get list of available teams by querying GraphDB directly."""
+        coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        query_script = os.path.join(coding_path, 'lib', 'vkb-server', 'db-query-cli.js')
+
+        if not os.path.exists(query_script):
+            self.send_json_response({
+                'error': 'Database query backend not available',
+                'message': f'db-query-cli.js not found at {query_script}'
+            }, status_code=503)
+            return
+
         try:
-            for filename in os.listdir(kb_path):
-                if filename.startswith('shared-memory-') and filename.endswith('.json') and not filename.endswith('-legacy-backup.json'):
-                    team = filename.replace('shared-memory-', '').replace('.json', '')
-                    available_teams.append(team)
-        except OSError as e:
-            print(f"Error reading KB path {kb_path}: {e}", file=sys.stderr)
-            # Return at least coding team as fallback
-            available_teams = ['coding']
-        
-        # Sort for consistent ordering, but put coding first
-        available_teams.sort()
-        if 'coding' in available_teams:
-            available_teams.remove('coding')
-            available_teams.insert(0, 'coding')
-        
-        # Get entity counts for each team
-        team_info = []
-        for team in available_teams:
-            filepath = os.path.join(kb_path, f'shared-memory-{team}.json')
-            
-            try:
-                with open(filepath, 'r') as f:
-                    data = json.load(f)
-                    # Count only insight entities (patterns), exclude System and Project entities
-                    entities = data.get('entities', [])
-                    insight_types = ['TransferablePattern', 'TechnicalPattern', 'WorkflowPattern']
-                    entity_count = len([e for e in entities if e.get('entityType') in insight_types])
-                    display_name = data.get('displayName', team.title())
-                    description = data.get('description', f'{display_name} knowledge base')
-                    team_info.append({
-                        'name': team,
-                        'displayName': display_name,
-                        'description': description,
-                        'entities': entity_count,
-                        'file': os.path.basename(filepath)
-                    })
-            except Exception as e:
-                print(f"Error reading {filepath}: {e}", file=sys.stderr)
-                team_info.append({
-                    'name': team,
-                    'displayName': team.title(),
-                    'description': f'{team.title()} knowledge base',
-                    'entities': 0,
-                    'file': os.path.basename(filepath)
-                })
-        
-        self.send_json_response({'available': team_info})
+            # Query GraphDB for all teams
+            result = subprocess.run(
+                ['node', query_script, 'teams', '{}'],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=coding_path
+            )
+
+            if result.returncode == 0:
+                # Parse JSON response - filter out debug/status lines
+                try:
+                    # Find the JSON line (ignore logging/status lines)
+                    lines = result.stdout.strip().split('\n')
+                    json_line = None
+                    for line in lines:
+                        # Skip lines that start with special chars (✓, ⚠, [) or are empty
+                        if line and not line[0] in ['✓', '⚠', '[', ' ']:
+                            json_line = line
+                            break
+
+                    if not json_line:
+                        raise ValueError("No JSON found in output")
+
+                    teams_data = json.loads(json_line)
+
+                    # Transform to expected format
+                    team_info = []
+                    for team in teams_data.get('available', []):
+                        team_info.append({
+                            'name': team['name'],
+                            'displayName': team.get('displayName', team['name'].title()),
+                            'description': f"{team.get('displayName', team['name'].title())} knowledge from GraphDB",
+                            'entities': team.get('entityCount', 0),
+                            'lastActivity': team.get('lastActivity')
+                        })
+
+                    self.send_json_response({'available': team_info})
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"Failed to parse teams response: {e}", file=sys.stderr)
+                    print(f"Output was: {result.stdout}", file=sys.stderr)
+                    self.send_json_response({
+                        'error': 'Invalid JSON response from database backend',
+                        'output': result.stdout
+                    }, status_code=500)
+            else:
+                error_msg = result.stderr.strip() if result.stderr else 'Unknown error'
+                print(f"GraphDB teams query failed: {error_msg}", file=sys.stderr)
+                self.send_json_response({
+                    'error': 'Failed to query teams from GraphDB',
+                    'message': error_msg
+                }, status_code=500)
+        except subprocess.TimeoutExpired:
+            self.send_json_response({
+                'error': 'Teams query timed out',
+                'message': 'GraphDB query took longer than 10 seconds'
+            }, status_code=504)
+        except Exception as e:
+            self.send_json_response({
+                'error': 'Internal server error',
+                'message': str(e)
+            }, status_code=500)
     
     def handle_set_teams(self):
         """Update KNOWLEDGE_VIEW env var and reload visualization."""
@@ -265,13 +283,14 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             if result.returncode == 0:
                 # Parse and return JSON response
-                # Filter out debug logging lines that start with [DatabaseManager]
+                # Filter out debug/status lines (✓, ⚠, [, whitespace)
                 try:
-                    # Find the JSON line (last non-logging line)
+                    # Find the JSON line (ignore logging/status lines)
                     lines = result.stdout.strip().split('\n')
                     json_line = None
-                    for line in reversed(lines):
-                        if not line.startswith('[') and line.strip():
+                    for line in lines:
+                        # Skip lines that start with special chars (✓, ⚠, [) or are empty
+                        if line and not line[0] in ['✓', '⚠', '[', ' ']:
                             json_line = line
                             break
 
@@ -280,10 +299,11 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                         self.send_json_response(response_data)
                     else:
                         raise json.JSONDecodeError("No JSON found", result.stdout, 0)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
                     self.send_json_response({
                         'error': 'Invalid JSON response from database backend',
-                        'output': result.stdout
+                        'output': result.stdout,
+                        'parseError': str(e)
                     }, status_code=500)
             else:
                 error_msg = result.stderr.strip() if result.stderr else 'Unknown error'

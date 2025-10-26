@@ -1,0 +1,104 @@
+@startuml component-structure
+!include ../../../../docs/puml/_standard-style.puml
+
+title Memory Visualizer - Component Structure
+
+package "Memory Visualizer Application" {
+
+  component [App.tsx] as APP <<root>> #FFE6CC
+
+  package "Knowledge Graph Module" #E6F3FF {
+    component [KnowledgeGraph/index.tsx] as KG
+    component [GraphVisualization.tsx] as GRAPH
+    component [NodeDetails.tsx] as DETAILS
+  }
+
+  package "Filtering Module" #FFE6E6 {
+    component [TypeFilters.tsx] as TYPE_FILTER
+    component [SearchFilter.tsx] as SEARCH
+    component [TeamFilter.tsx] as TEAM_FILTER
+    component [SourceFilter.tsx] as SOURCE_FILTER
+  }
+
+  package "Rendering Components" #E6FFE6 {
+    component [MarkdownViewer.tsx] as MARKDOWN
+    component [MermaidDiagram.tsx] as MERMAID
+  }
+
+  package "State Management" #FFF4E6 {
+    component [store/index.ts] as STORE
+    component [store/graphSlice.ts] as SLICE
+  }
+
+  package "API Layer" #F0E6FF {
+    component [api/databaseClient.ts] as CLIENT
+  }
+
+  package "Utilities" #E6E6FF {
+    component [utils/graphHelpers.ts] as HELPERS
+  }
+}
+
+' Relationships
+APP --> KG : "renders"
+APP --> STORE : "provides context"
+
+KG --> GRAPH : "uses"
+KG --> DETAILS : "uses"
+KG --> TYPE_FILTER : "uses"
+KG --> SEARCH : "uses"
+KG --> TEAM_FILTER : "uses"
+KG --> SOURCE_FILTER : "uses"
+
+GRAPH --> HELPERS : "calls"
+GRAPH --> STORE : "reads/writes"
+
+DETAILS --> MARKDOWN : "renders with"
+DETAILS --> MERMAID : "renders with"
+DETAILS --> STORE : "reads"
+
+TYPE_FILTER --> STORE : "dispatches actions"
+SEARCH --> STORE : "dispatches actions"
+TEAM_FILTER --> STORE : "dispatches actions"
+SOURCE_FILTER --> STORE : "dispatches actions"
+
+STORE --> SLICE : "contains"
+SLICE --> CLIENT : "uses"
+CLIENT --> HELPERS : "uses"
+
+note right of KG
+  **Primary Features:**
+  - Interactive graph visualization
+  - Entity selection and details
+  - Real-time filtering
+  - Multi-team support
+end note
+
+note right of GRAPH
+  **D3.js Features:**
+  - Force-directed layout
+  - Drag to reposition
+  - Zoom/pan controls
+  - Dynamic updates
+end note
+
+note right of CLIENT
+  **Data Sources:**
+  - GraphDB (LevelDB)
+  - memory.json files
+  - Clipboard paste
+  - Drag & drop
+end note
+
+legend bottom
+  |= Module Type |= Purpose |
+  | <back:#E6F3FF>   </back> | Core Visualization |
+  | <back:#FFE6E6>   </back> | Filtering & Search |
+  | <back:#E6FFE6>   </back> | Content Rendering |
+  | <back:#FFF4E6>   </back> | State Management |
+  | <back:#F0E6FF>   </back> | Data Access |
+  | <back:#E6E6FF>   </back> | Utilities |
+  | <back:#FFE6CC>   </back> | Root Component |
+endlegend
+
+@enduml

@@ -1,0 +1,96 @@
+@startuml architecture
+!include ../../../../docs/puml/_standard-style.puml
+
+title Memory Visualizer - System Architecture
+
+package "Frontend (React + TypeScript)" {
+  component [App.tsx] as APP <<react>>
+
+  package "Components" {
+    component [KnowledgeGraph] as KG <<react>>
+    component [GraphVisualization] as GRAPH <<react>>
+    component [NodeDetails] as DETAILS <<react>>
+    component [Filters] as FILTERS <<react>>
+    component [MarkdownViewer] as MARKDOWN <<react>>
+    component [MermaidDiagram] as MERMAID <<react>>
+  }
+
+  package "State Management" {
+    component [Redux Store] as STORE <<state>>
+    component [Graph Slice] as SLICE <<state>>
+  }
+
+  package "API Layer" {
+    component [databaseClient] as CLIENT <<api>>
+  }
+
+  package "Utilities" {
+    component [graphHelpers] as HELPERS <<util>>
+  }
+}
+
+package "Visualization Layer" {
+  component [D3.js] as D3 <<library>>
+  component [Mermaid] as MERMAID_LIB <<library>>
+}
+
+package "Data Sources" {
+  storage [memory.json] as MEMORY <<file>>
+  storage [GraphDB\n(LevelDB)] as GRAPHDB <<database>>
+}
+
+' Component relationships
+APP --> KG
+APP --> STORE
+
+KG --> GRAPH
+KG --> DETAILS
+KG --> FILTERS
+
+GRAPH --> D3
+GRAPH --> HELPERS
+DETAILS --> MARKDOWN
+DETAILS --> MERMAID
+
+MERMAID --> MERMAID_LIB
+MARKDOWN --> MERMAID
+
+STORE --> SLICE
+SLICE --> CLIENT
+
+CLIENT --> MEMORY : "load/parse"
+CLIENT --> GRAPHDB : "query"
+
+HELPERS --> STORE : "read state"
+
+note right of MEMORY
+  JSON file format:
+  - entities[]
+  - relations[]
+  - observations[]
+end note
+
+note right of GRAPHDB
+  LevelDB backend:
+  - Real-time queries
+  - Multi-team support
+  - Team isolation
+end note
+
+note bottom of D3
+  Force-directed graph layout
+  Interactive node dragging
+  Zoom and pan support
+  Dynamic link rendering
+end note
+
+legend right
+  |= Component Type |= Description |
+  | <back:#E6F3FF>react</back> | React Component |
+  | <back:#FFE6E6>state</back> | Redux State Management |
+  | <back:#E6FFE6>api</back> | API/Data Layer |
+  | <back:#FFF4E6>util</back> | Utility Functions |
+  | <back:#F0E6FF>library</back> | External Library |
+endlegend
+
+@enduml

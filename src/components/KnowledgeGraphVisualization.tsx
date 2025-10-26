@@ -333,6 +333,10 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   const [useDatabase, setUseDatabase] = useState(false);
   const [dbHealthy, setDbHealthy] = useState(false);
 
+  // Track selected teams for filtering
+  // Start with null to indicate "not yet loaded" (vs empty array which means "explicitly cleared")
+  const [selectedTeams, setSelectedTeams] = useState<string[] | null>(null);
+
   // Handler for dataSource changes - saves to localStorage for persistence across team changes
   const handleDataSourceChange = (newSource: 'batch' | 'online' | 'combined') => {
     setDataSource(newSource);
@@ -340,25 +344,44 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     console.log(`[VKB] Data source changed to: ${newSource} (saved to localStorage)`);
   };
 
+  // Handler for team selection changes
+  const handleTeamsChange = (teams: string[]) => {
+    console.log(`[VKB] Teams changed to: ${teams.join(', ')}`);
+    setSelectedTeams(teams);
+  };
+
   // Function to filter data based on dataSource mode
   const filterDataBySource = (entities: Entity[], relations: Relation[], mode: 'batch' | 'online' | 'combined') => {
+    console.log(`[VKB DEBUG] filterDataBySource called with mode="${mode}", ${entities.length} entities`);
+
     if (mode === 'combined') {
+      console.log(`[VKB DEBUG] Combined mode - returning all ${entities.length} entities`);
       return { entities, relations };
     }
 
     let filteredEntities: Entity[];
     if (mode === 'batch') {
-      // Batch mode: Keep only entities from shared-memory-*.json files
-      filteredEntities = entities.filter(e =>
-        e._source?.startsWith('shared-memory-') ||
-        (!e._source && e.metadata?.sourceType !== 'online')
-      );
+      // Batch mode: Keep only entities with metadata.source === 'batch' (manual/ukb learned)
+      console.log('[VKB DEBUG] Batch mode filtering...');
+      filteredEntities = entities.filter(e => {
+        const isBatch = e.metadata?.source === 'batch' || (!e.metadata?.source && e._source?.startsWith('shared-memory-'));
+        if (isBatch && e.name.includes('Online')) {
+          console.log(`[VKB DEBUG] Including in batch: ${e.name} (source=${e.metadata?.source})`);
+        }
+        return isBatch;
+      });
+      console.log(`[VKB DEBUG] Batch filter result: ${filteredEntities.length} entities`);
     } else {
-      // Online mode: Keep entities from database PLUS related System/Project entities
-      const onlineEntities = entities.filter(e =>
-        e._source === 'database' ||
-        e.metadata?.sourceType === 'online'
-      );
+      // Online mode: Keep entities with metadata.source === 'online' PLUS related System/Project entities
+      console.log('[VKB DEBUG] Online mode filtering...');
+      const onlineEntities = entities.filter(e => {
+        const isOnline = e.metadata?.source === 'online';
+        if (isOnline) {
+          console.log(`[VKB DEBUG] Online entity found: ${e.name}`);
+        }
+        return isOnline;
+      });
+      console.log(`[VKB DEBUG] Found ${onlineEntities.length} pure online entities`);
 
       // Find System and Project entities that online entities relate to
       const onlineEntityNames = new Set(onlineEntities.map(e => e.name));
@@ -380,6 +403,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         }
       });
 
+      console.log(`[VKB DEBUG] Connected entities: ${Array.from(connectedEntityNames).join(', ')}`);
+
       // Keep online entities plus connected System/Project entities
       filteredEntities = entities.filter(e => connectedEntityNames.has(e.name));
     }
@@ -395,13 +420,13 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
   };
 
   // Function to load data from database
-  const loadFromDatabase = async (team?: string, source?: 'manual' | 'auto') => {
+  const loadFromDatabase = async (teams?: string | string[], source?: 'manual' | 'auto') => {
     try {
       setIsLoading(true);
       setErrorMessage("");
-      console.log('📊 Loading knowledge from database...');
+      console.log(`📊 Loading knowledge from database for teams: ${Array.isArray(teams) ? teams.join(', ') : teams || 'all'}`);
 
-      const graphData = await dbClient.loadKnowledgeGraph(team, source);
+      const graphData = await dbClient.loadKnowledgeGraph(teams, source);
 
       // Transform database format to component format
       const entities: Entity[] = graphData.entities.map(e => ({
@@ -411,12 +436,32 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         type: 'entity',
         _source: 'database',
         metadata: {
-          source: source === 'manual' ? 'batch' : 'online',
+          // Use the entity's actual source from database, not the query filter
+          source: e.source === 'manual' ? 'batch' : 'online',
           team: e.team,
           confidence: e.confidence,
           lastModified: e.lastModified
         }
       }));
+
+      // DEBUG: Log data transformation
+      console.log(`[VKB DEBUG] Loaded ${entities.length} entities from database`);
+      const sourceCount = entities.reduce((acc, e) => {
+        const src = e.metadata?.source || 'undefined';
+        acc[src] = (acc[src] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('[VKB DEBUG] Source distribution after transformation:', sourceCount);
+
+      const testOnline = entities.find(e => e.name === 'TestOnlinePattern');
+      if (testOnline) {
+        console.log('[VKB DEBUG] TestOnlinePattern:', testOnline);
+      } else {
+        console.log('[VKB DEBUG] TestOnlinePattern NOT FOUND in transformed entities');
+      }
+
+      const projects = entities.filter(e => e.entityType === 'Project');
+      console.log('[VKB DEBUG] Projects found:', projects.map(p => `${p.name}(source=${p.metadata?.source})`));
 
       const relations: Relation[] = graphData.relations.map(r => ({
         from: graphData.entities.find(e => e.id === r.source)?.name || r.source,
@@ -502,15 +547,14 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       setGraphData(filtered);
 
       // Calculate stats including source breakdown
-      // Batch: from shared-memory-*.json files (curated/manual knowledge)
-      // Online: from database (auto-learned) or marked as online via metadata.sourceType
+      // Batch: manual/ukb learned knowledge (metadata.source === 'batch')
+      // Online: auto-learned knowledge (metadata.source === 'online')
       const batchCount = entities.filter(e =>
-        e._source?.startsWith('shared-memory-') ||
-        (!e._source && e.metadata?.sourceType !== 'online')
+        e.metadata?.source === 'batch' ||
+        (!e.metadata?.source && e._source?.startsWith('shared-memory-'))
       ).length;
       const onlineCount = entities.filter(e =>
-        e._source === 'database' ||
-        e.metadata?.sourceType === 'online'
+        e.metadata?.source === 'online'
       ).length;
 
       setStats({
@@ -646,11 +690,12 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     const checkDatabase = async () => {
       try {
         const health = await dbClient.checkHealth();
-        const healthy = health.status === 'healthy' && health.sqlite;
+        // Phase 4: Check for GraphDB (qdrant field is actually used for graph in our implementation)
+        const healthy = health.status === 'healthy';
         setDbHealthy(healthy);
 
         if (healthy) {
-          console.log('✅ Database available - can use direct DB queries');
+          console.log('✅ Database available (GraphDB) - can use direct DB queries');
           setUseDatabase(true); // Enable database mode
         } else {
           console.log('⚠️ Database unavailable - using JSON files only');
@@ -666,18 +711,34 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
 
   // Automatically load data - prefer database if available, fall back to JSON
   useEffect(() => {
-    // Wait for both dataSource and database health check
-    if (dataSource === null || hasLoadedDataRef.current) {
+    // Wait for dataSource to be initialized
+    if (dataSource === null) {
+      return;
+    }
+
+    // Wait for selectedTeams to be initialized (null = not yet loaded from TeamSelector)
+    if (selectedTeams === null) {
+      console.log('📊 Waiting for team selection to initialize...');
+      return;
+    }
+
+    // If explicitly no teams selected, clear the graph
+    if (selectedTeams.length === 0) {
+      console.log('📊 No teams selected - clearing graph');
+      rawDataRef.current = { entities: [], relations: [] };
+      setGraphData({ entities: [], relations: [] });
       return;
     }
 
     const loadData = async () => {
       // If database is healthy and we're in online or combined mode, load from database
       if (useDatabase && dbHealthy && (dataSource === 'online' || dataSource === 'combined')) {
-        console.log('📊 Loading from database (database mode)');
-        const sourceFilter = dataSource === 'online' ? 'auto' : undefined;
-        await loadFromDatabase(undefined, sourceFilter);
-        hasLoadedDataRef.current = true;
+        console.log(`📊 Loading from database for ${selectedTeams?.length || 0} teams: ${selectedTeams?.join(', ') || 'none'}`);
+        // Phase 4: Don't filter by source - GraphDB contains manually curated knowledge
+        // All knowledge in GraphDB has source='manual' from ukb commands
+        const sourceFilter = undefined; // Load all knowledge from GraphDB
+        // Query only selected teams
+        await loadFromDatabase(selectedTeams, sourceFilter);
       } else {
         // Fall back to JSON loading
         console.log('📊 Loading from JSON files (fallback mode)');
@@ -686,7 +747,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     };
 
     loadData();
-  }, [dataSource, useDatabase, dbHealthy]); // Re-run when any of these change
+  }, [dataSource, useDatabase, dbHealthy, selectedTeams]); // Re-run when dataSource/teams/database change
 
   // Legacy: Load memory.json for JSON mode
   const loadMemoryJson = async () => {
@@ -728,35 +789,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       }
   };
 
-  // Re-filter data when dataSource mode changes
-  useEffect(() => {
-    if (!rawDataRef.current || dataSource === null) return;
-
-    const { entities, relations } = rawDataRef.current;
-    const filtered = filterDataBySource(entities, relations, dataSource);
-    setGraphData(filtered);
-
-    // Update stats for filtered data
-    const batchCount = filtered.entities.filter(e =>
-      e._source?.startsWith('shared-memory-') ||
-      (!e._source && e.metadata?.sourceType !== 'online')
-    ).length;
-    const onlineCount = filtered.entities.filter(e =>
-      e._source === 'database' ||
-      e.metadata?.sourceType === 'online'
-    ).length;
-
-    setStats({
-      entityCount: filtered.entities.length,
-      relationCount: filtered.relations.length,
-      entityTypeCount: new Set(filtered.entities.map((e) => e.entityType)).size,
-      relationTypeCount: new Set(filtered.relations.map((r) => r.relationType)).size,
-      batchCount,
-      onlineCount,
-    });
-
-    console.log(`📊 Updated view to ${dataSource} mode: ${filtered.entities.length} entities, ${filtered.relations.length} relations`);
-  }, [dataSource]); // Re-run when dataSource changes
+  // REMOVED: Second filtering useEffect that was causing double updates
+  // Filtering is now ONLY handled in loadFromDatabase() and parseMemoryJson() above
 
   // Get unique entity types and relation types for filters
   const entityTypes = graphData
@@ -779,6 +813,17 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     // Filter entities based on search term and entity type
     let filteredEntities = graphData.entities;
 
+    // Filter by selected teams (if teams are specified)
+    if (selectedTeams && selectedTeams.length > 0) {
+      filteredEntities = filteredEntities.filter(entity => {
+        // System entities (like CollectiveKnowledge) belong to all teams
+        if (entity.entityType === "System") return true;
+        // Check if entity's team is in the selected teams
+        const entityTeam = entity.metadata?.team;
+        return entityTeam && selectedTeams.includes(entityTeam);
+      });
+    }
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       console.log("🔍 Search term:", term);
@@ -788,7 +833,11 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         (entity) =>
           entity.name.toLowerCase().includes(term) ||
           entity.entityType.toLowerCase().includes(term) ||
-          entity.observations.some((obs) => obs.toLowerCase().includes(term))
+          entity.observations.some((obs) => {
+            // Handle both string observations and object observations with content field
+            const content = typeof obs === 'string' ? obs : obs?.content;
+            return content && typeof content === 'string' && content.toLowerCase().includes(term);
+          })
       );
       
       console.log("🔍 Entities after search filter:", filteredEntities.length);
@@ -801,38 +850,8 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       );
     }
 
-    // Include System entities only when NOT searching to maintain full graph structure
-    // During search, be much more selective to show only relevant results
-    if (filteredEntities.length > 0 && filterEntityType !== "System" && !searchTerm) {
-      const systemEntities = graphData.entities.filter(
-        (entity) => entity.entityType === "System"
-      );
-      // Add System entities that aren't already in the filtered list
-      systemEntities.forEach((sysEntity) => {
-        if (!filteredEntities.some(e => e.name === sysEntity.name)) {
-          filteredEntities.push(sysEntity);
-        }
-      });
-    }
-    
-    // Special case: If we still don't have CollectiveKnowledge but have other entities,
-    // create a placeholder CollectiveKnowledge entity to maintain graph structure (but not during search)
-    if (filteredEntities.length > 0 && !filteredEntities.some(e => e.name === "CollectiveKnowledge") && !searchTerm) {
-      // Check if any relations reference CollectiveKnowledge
-      const hasCollectiveKnowledgeRelations = graphData.relations.some(r => 
-        r.from === "CollectiveKnowledge" || r.to === "CollectiveKnowledge"
-      );
-      
-      if (hasCollectiveKnowledgeRelations) {
-        // Add a virtual CollectiveKnowledge entity
-        filteredEntities.push({
-          name: "CollectiveKnowledge",
-          entityType: "System",
-          type: "entity",
-          observations: ["Central knowledge hub for cross-view insights"]
-        });
-      }
-    }
+    // System entities are already included via team filtering above (line 814)
+    // No need to add them separately or create placeholders
 
     // Get entity names to filter relations
     const entityNames = new Set(filteredEntities.map((entity) => entity.name));
@@ -1186,7 +1205,9 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
         }
 
         // For Pattern/Knowledge nodes, determine source for color coding
-        const isOnline = d._source === 'database' || d.metadata?.source === 'online';
+        // Use metadata.source which has the actual source info (batch/online)
+        // Don't use _source which just indicates 'database' for all DB entities
+        const isOnline = d.metadata?.source === 'online';
         const source = isOnline ? 'online' : 'batch';
 
         // Base colors for data sources (only used for Pattern nodes)
@@ -1469,6 +1490,64 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     setErrorMessage("");
   };
 
+  // Center the graph in the visible area
+  const centerGraph = () => {
+    if (!svgRef.current || !graphData) return;
+    const zoomBehavior = zoomBehaviorRef.current;
+    if (!zoomBehavior) return;
+
+    // Get all nodes
+    const svg = d3.select(svgRef.current);
+    const allNodes = svg.selectAll('.node').data() as Node[];
+
+    if (allNodes.length === 0) return;
+
+    // Calculate bounding box of all nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    allNodes.forEach(node => {
+      if (node.x !== undefined && node.y !== undefined) {
+        minX = Math.min(minX, node.x);
+        minY = Math.min(minY, node.y);
+        maxX = Math.max(maxX, node.x);
+        maxY = Math.max(maxY, node.y);
+      }
+    });
+
+    // Add padding
+    const padding = 50;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+
+    // Calculate available area (accounting for sidebar when open)
+    const availableWidth = selectedNode ? dimensions.width * (2/3) : dimensions.width;
+    const availableHeight = dimensions.height;
+
+    // Calculate scale to fit
+    const scaleX = availableWidth / graphWidth;
+    const scaleY = availableHeight / graphHeight;
+    const scale = Math.min(scaleX, scaleY, 1.5); // Don't zoom in more than 1.5x
+
+    // Calculate center position
+    const graphCenterX = (minX + maxX) / 2;
+    const graphCenterY = (minY + maxY) / 2;
+    const newX = availableWidth / 2 - graphCenterX * scale;
+    const newY = availableHeight / 2 - graphCenterY * scale;
+
+    // Animate to center
+    svg
+      .transition()
+      .duration(750)
+      .call(
+        zoomBehavior.transform as any,
+        d3.zoomIdentity.translate(newX, newY).scale(scale)
+      );
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {!graphData ? (
@@ -1714,24 +1793,41 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
                   DDD Coding Insights Visualizer
                 </h1>
               </div>
-              <button
-                onClick={resetVisualization}
-                className="py-1 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors flex items-center"
-              >
-                <svg 
-                  className="w-4 h-4 mr-1" 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 32 32"
-                  fill="currentColor"
+              <div className="flex gap-2">
+                <button
+                  onClick={centerGraph}
+                  className="py-1 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center"
+                  title="Center and fit graph in view"
                 >
-                  <circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z" fill="currentColor"/>
-                  <circle cx="11.5" cy="11.5" r="1.5" fill="currentColor"/>
-                  <circle cx="20.5" cy="11.5" r="1.5" fill="currentColor"/>
-                  <circle cx="16" cy="20.5" r="1.5" fill="currentColor"/>
-                </svg>
-                Upload New File
-              </button>
+                  <svg
+                    className="w-4 h-4 mr-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                  Center Graph
+                </button>
+                <button
+                  onClick={resetVisualization}
+                  className="py-1 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors flex items-center"
+                >
+                  <svg
+                    className="w-4 h-4 mr-1"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 32 32"
+                    fill="currentColor"
+                  >
+                    <circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M8 16.5v-1h3.5c0-.8-.2-1.5-.6-2.1l-2.5 2.5c-.3.3-.3.8 0 1.1.1.1.3.2.4.2s.3-.1.4-.2l2.5-2.5c.6-.4 1.3-.6 2.1-.6V8h1v3.5c.8 0 1.5.2 2.1.6l2.5-2.5c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L18 12.9c.4.6.6 1.3.6 2.1H24v1h-5.5c0 .8-.2 1.5-.6 2.1l2.5 2.5c.3.3.3.8 0 1.1-.1.1-.3.2-.4.2s-.3-.1-.4-.2L17 19.1c-.6.4-1.3.6-2.1.6V24h-1v-4.5c-.8 0-1.5-.2-2.1-.6l-2.5 2.5c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 18c-.4-.6-.6-1.3-.6-2.1H8z" fill="currentColor"/>
+                    <circle cx="11.5" cy="11.5" r="1.5" fill="currentColor"/>
+                    <circle cx="20.5" cy="11.5" r="1.5" fill="currentColor"/>
+                    <circle cx="16" cy="20.5" r="1.5" fill="currentColor"/>
+                  </svg>
+                  Upload New File
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -2085,7 +2181,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       )}
 
       {/* Floating Team Selector */}
-      <TeamSelector />
+      <TeamSelector onTeamsChange={handleTeamsChange} />
     </div>
   );
 };

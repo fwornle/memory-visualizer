@@ -1,0 +1,152 @@
+@startuml data-flow
+!include ../../../../docs/puml/_standard-style.puml
+
+title Memory Visualizer - Data Flow Sequence
+
+actor User
+participant "Browser\n(React App)" as APP
+participant "Redux Store" as STORE
+participant "Database Client" as CLIENT
+participant "Graph Helpers" as HELPERS
+participant "D3 Visualization" as D3
+database "Data Source\n(memory.json\nor GraphDB)" as DATA
+
+== Initialization ==
+
+User -> APP : Open application
+activate APP
+
+APP -> STORE : Initialize store
+activate STORE
+STORE -> CLIENT : Check for data source
+activate CLIENT
+
+alt GraphDB Available
+    CLIENT -> DATA : Query GraphDB
+    activate DATA
+    DATA --> CLIENT : Return entities & relations
+    deactivate DATA
+else JSON File Upload
+    User -> APP : Upload memory.json
+    APP -> CLIENT : Parse JSON file
+    CLIENT -> CLIENT : Validate structure
+end
+
+CLIENT --> STORE : Load graph data
+deactivate CLIENT
+STORE --> APP : Data ready
+deactivate STORE
+
+APP -> D3 : Initialize visualization
+activate D3
+D3 -> HELPERS : Process graph layout
+activate HELPERS
+HELPERS -> HELPERS : Calculate positions
+HELPERS -> HELPERS : Build force simulation
+HELPERS --> D3 : Return layout data
+deactivate HELPERS
+D3 --> APP : Render graph
+deactivate D3
+
+deactivate APP
+
+== User Interaction ==
+
+User -> APP : Click entity node
+activate APP
+
+APP -> STORE : Get selected entity
+activate STORE
+STORE -> CLIENT : Fetch entity details
+activate CLIENT
+CLIENT -> DATA : Query observations
+activate DATA
+DATA --> CLIENT : Return observations
+deactivate DATA
+CLIENT --> STORE : Entity data
+deactivate CLIENT
+STORE --> APP : Complete entity info
+deactivate STORE
+
+APP -> APP : Update NodeDetails panel
+APP --> User : Show entity details
+
+deactivate APP
+
+== Filtering ==
+
+User -> APP : Apply filters
+activate APP
+
+APP -> STORE : Update filter state
+activate STORE
+STORE -> HELPERS : Filter graph data
+activate HELPERS
+HELPERS -> HELPERS : Apply type filters
+HELPERS -> HELPERS : Apply search filter
+HELPERS --> STORE : Filtered results
+deactivate HELPERS
+STORE --> APP : Updated dataset
+deactivate STORE
+
+APP -> D3 : Re-render graph
+activate D3
+D3 -> D3 : Update nodes & links
+D3 --> APP : Visualization updated
+deactivate D3
+
+APP --> User : Show filtered graph
+
+deactivate APP
+
+== Team Selection ==
+
+User -> APP : Select team
+activate APP
+
+APP -> STORE : Change active team
+activate STORE
+STORE -> CLIENT : Query team data
+activate CLIENT
+CLIENT -> DATA : Fetch team entities
+activate DATA
+DATA --> CLIENT : Team-specific data
+deactivate DATA
+CLIENT --> STORE : Team graph
+deactivate CLIENT
+STORE --> APP : Updated data
+deactivate STORE
+
+APP -> D3 : Rebuild visualization
+activate D3
+D3 -> HELPERS : Recalculate layout
+activate HELPERS
+HELPERS --> D3 : New layout
+deactivate HELPERS
+D3 --> APP : Render team graph
+deactivate D3
+
+APP --> User : Display team knowledge
+
+deactivate APP
+
+note over APP, DATA
+  **Data Sources:**
+  1. **memory.json** - Static file upload
+  2. **GraphDB (LevelDB)** - Live database queries
+
+  **Multi-Team Support:**
+  - Team isolation in queries
+  - Domain-specific knowledge bases
+  - Cross-team navigation
+end note
+
+legend right
+  |= Interaction Type |
+  | <back:#E6F3FF>   </back> Initialization |
+  | <back:#FFE6E6>   </back> User Action |
+  | <back:#E6FFE6>   </back> Data Query |
+  | <back:#FFF4E6>   </back> Visualization |
+endlegend
+
+@enduml

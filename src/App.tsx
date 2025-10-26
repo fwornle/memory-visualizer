@@ -1,69 +1,36 @@
-import { useState } from "react";
-import KnowledgeGraphVisualization from "./components/KnowledgeGraphVisualization";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { openMarkdown, closeMarkdown, markdownBack, markdownForward } from "./store/slices/navigationSlice";
+import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import MarkdownViewer from "./components/MarkdownViewer";
 
-interface MarkdownHistoryItem {
-  filePath: string;
-  title: string;
-}
-
 function App() {
-  const [markdownFile, setMarkdownFile] = useState<string | null>(null);
-  const [markdownHistory, setMarkdownHistory] = useState<MarkdownHistoryItem[]>([]);
-  const [markdownHistoryIndex, setMarkdownHistoryIndex] = useState(-1);
+  const dispatch = useAppDispatch();
+  const { markdownFile, markdownHistory, markdownHistoryIndex } = useAppSelector(
+    state => state.navigation
+  );
 
   const handleOpenMarkdown = (filePath: string) => {
-    // Convert relative paths to absolute paths for localhost files
-    let normalizedPath = filePath;
-    
-    // Handle relative paths that don't start with http
-    if (!filePath.startsWith('http')) {
-      // If it's a relative path, prepend the localhost URL
-      if (!filePath.startsWith('/')) {
-        normalizedPath = `http://localhost:8080/${filePath}`;
-      } else {
-        normalizedPath = `http://localhost:8080${filePath}`;
-      }
-    }
-    
-    const title = normalizedPath.split('/').pop() || normalizedPath;
-    const newItem: MarkdownHistoryItem = { filePath: normalizedPath, title };
-    
-    // Add to history, removing any future items if we're not at the end
-    const newHistory = markdownHistory.slice(0, markdownHistoryIndex + 1);
-    newHistory.push(newItem);
-    
-    setMarkdownHistory(newHistory);
-    setMarkdownHistoryIndex(newHistory.length - 1);
-    setMarkdownFile(normalizedPath);
+    dispatch(openMarkdown(filePath));
   };
 
   const handleCloseMarkdown = () => {
-    setMarkdownFile(null);
+    dispatch(closeMarkdown());
   };
 
   const handleMarkdownBack = () => {
-    if (markdownHistoryIndex > 0) {
-      const newIndex = markdownHistoryIndex - 1;
-      setMarkdownHistoryIndex(newIndex);
-      setMarkdownFile(markdownHistory[newIndex].filePath);
-    }
+    dispatch(markdownBack());
   };
 
   const handleMarkdownForward = () => {
-    if (markdownHistoryIndex < markdownHistory.length - 1) {
-      const newIndex = markdownHistoryIndex + 1;
-      setMarkdownHistoryIndex(newIndex);
-      setMarkdownFile(markdownHistory[newIndex].filePath);
-    }
+    dispatch(markdownForward());
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <KnowledgeGraphVisualization onOpenMarkdown={handleOpenMarkdown} />
+      <KnowledgeGraph onOpenMarkdown={handleOpenMarkdown} />
       {markdownFile && (
-        <MarkdownViewer 
-          filePath={markdownFile} 
+        <MarkdownViewer
+          filePath={markdownFile}
           onClose={handleCloseMarkdown}
           onOpenMarkdown={handleOpenMarkdown}
           onBack={handleMarkdownBack}

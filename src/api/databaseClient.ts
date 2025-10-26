@@ -125,7 +125,7 @@ export class DatabaseClient {
   /**
    * Check database health
    */
-  async checkHealth(): Promise<{ status: string; sqlite: boolean; qdrant: boolean }> {
+  async checkHealth(): Promise<{ status: string; sqlite: boolean; qdrant: boolean; graph: boolean }> {
     const response = await fetch(`${this.baseUrl}/api/health`);
 
     if (!response.ok) {
@@ -153,28 +153,111 @@ export class DatabaseClient {
     }));
 
     // Transform relations to D3 links
-    const links = relations.map(relation => ({
-      source: relation.from_entity_id,
-      target: relation.to_entity_id,
-      type: relation.relation_type,
-      confidence: relation.confidence,
-      metadata: relation.metadata
-    }));
+    // Use from_name/to_name instead of IDs so they match entity names
+    const links = relations.map((relation, index) => {
+      // Debug first relation
+      if (index === 0) {
+        console.log('🔍 [DatabaseClient] First relation structure:', {
+          has_from_name: !!relation.from_name,
+          has_to_name: !!relation.to_name,
+          from_name: relation.from_name,
+          to_name: relation.to_name,
+          from_entity_id: relation.from_entity_id,
+          to_entity_id: relation.to_entity_id,
+          relation_type: relation.relation_type
+        });
+      }
+
+      return {
+        source: relation.from_name || relation.from_entity_id,
+        target: relation.to_name || relation.to_entity_id,
+        type: relation.relation_type,
+        confidence: relation.confidence,
+        metadata: relation.metadata
+      };
+    });
 
     return { entities: nodes, relations: links };
   }
 
   /**
-   * Load complete knowledge graph for a team
+   * Load complete knowledge graph for a team or multiple teams
    */
-  async loadKnowledgeGraph(team?: string, source?: 'manual' | 'auto'): Promise<GraphData> {
+  async loadKnowledgeGraph(team?: string | string[], source?: 'manual' | 'auto'): Promise<GraphData> {
+    console.log(`🔍 [DatabaseClient] loadKnowledgeGraph called with:`, { team, source, isArray: Array.isArray(team) });
     try {
-      // Fetch entities and relations in parallel
+      // Handle multiple teams
+      if (Array.isArray(team)) {
+        console.log(`🔍 [DatabaseClient] Processing multiple teams:`, team);
+        // Query each team separately and merge results
+        const teamResults = await Promise.all(
+          team.map(t => Promise.all([
+            this.queryEntities({ team: t, source, limit: 5000 }),
+            this.queryRelations({ team: t })
+          ]))
+        );
+        console.log(`🔍 [DatabaseClient] Team results:`, teamResults.map(([e, r]) => ({
+          entities: e.length,
+          relations: r.length
+        })));
+
+        // Merge all entities and relations with deduplication
+        const entitiesMap = new Map<string, Entity>();
+
+        // Flatten and deduplicate entities by entity_name
+        teamResults.forEach(([entities, _]) => {
+          entities.forEach(entity => {
+            const existingEntity = entitiesMap.get(entity.entity_name);
+
+            if (existingEntity) {
+              // Merge observations from duplicate entities
+              const mergedObservations = Array.from(new Set([
+                ...existingEntity.observations,
+                ...entity.observations
+              ]));
+
+              // Track all teams this entity belongs to
+              const existingTeams = existingEntity.metadata?.teams || [existingEntity.team];
+              const allTeams = Array.from(new Set([...existingTeams, entity.team]));
+
+              existingEntity.observations = mergedObservations;
+              existingEntity.metadata = {
+                ...existingEntity.metadata,
+                teams: allTeams
+              };
+            } else {
+              // First occurrence of this entity
+              entitiesMap.set(entity.entity_name, {
+                ...entity,
+                metadata: {
+                  ...entity.metadata,
+                  teams: [entity.team]
+                }
+              });
+            }
+          });
+        });
+
+        const allEntities = Array.from(entitiesMap.values());
+        const allRelations = teamResults.flatMap(([_, relations]) => relations);
+
+        console.log(`🔍 [DatabaseClient] Merged: ${allEntities.length} entities, ${allRelations.length} relations`);
+        const result = this.transformToGraphData(allEntities, allRelations);
+        console.log(`🔍 [DatabaseClient] Transformed result:`, {
+          entitiesCount: result.entities.length,
+          relationsCount: result.relations.length
+        });
+        return result;
+      }
+
+      // Single team or all teams (undefined)
+      console.log(`🔍 [DatabaseClient] Processing single team or all teams`);
       const [entities, relations] = await Promise.all([
         this.queryEntities({ team, source, limit: 5000 }),
         this.queryRelations({ team })
       ]);
 
+      console.log(`🔍 [DatabaseClient] Single team results: ${entities.length} entities, ${relations.length} relations`);
       return this.transformToGraphData(entities, relations);
     } catch (error) {
       console.error('Failed to load knowledge graph:', error);
