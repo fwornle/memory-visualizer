@@ -66,10 +66,10 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar with filters */}
-      <div className="w-80 bg-gray-50 border-r border-gray-200 overflow-y-auto p-4 space-y-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h1 className="text-xl font-bold text-gray-800">Knowledge Graph</h1>
-          <p className="text-sm text-gray-600 mt-1">
+      <div className="w-80 bg-gray-50 border-r border-gray-200 overflow-y-auto p-3 space-y-2">
+        <div className="bg-white rounded-lg shadow p-2">
+          <h1 className="text-base font-bold text-gray-800">Knowledge Graph</h1>
+          <p className="text-xs text-gray-600 mt-0.5">
             {dbHealthy ? '🟢 Database Connected' : '🔴 Database Unavailable'}
           </p>
         </div>

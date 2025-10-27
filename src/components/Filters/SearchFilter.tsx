@@ -22,26 +22,26 @@ export const SearchFilter: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Search</h3>
+    <div className="bg-white rounded-lg shadow p-2">
+      <h3 className="text-xs font-semibold text-gray-700 mb-1.5">Search</h3>
       <div className="relative">
         <input
           type="text"
           value={searchTerm}
           onChange={handleChange}
           placeholder="Search entities..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {searchTerm && (
           <button
             onClick={handleClear}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-1.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
           >
             ✕
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-500 mt-2">
+      <p className="text-[10px] text-gray-500 mt-1 leading-tight">
         Search by entity name, type, or observations
       </p>
     </div>

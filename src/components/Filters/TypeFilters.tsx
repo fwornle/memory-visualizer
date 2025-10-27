@@ -16,15 +16,15 @@ export const TypeFilters: React.FC = () => {
   );
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 space-y-4">
+    <div className="bg-white rounded-lg shadow p-2 space-y-2">
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <label className="block text-xs font-semibold text-gray-700 mb-1">
           Entity Type
         </label>
         <select
           value={entityType}
           onChange={(e) => dispatch(setEntityType(e.target.value))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {availableEntityTypes.map(type => (
             <option key={type} value={type}>
@@ -35,13 +35,13 @@ export const TypeFilters: React.FC = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <label className="block text-xs font-semibold text-gray-700 mb-1">
           Relation Type
         </label>
         <select
           value={relationType}
           onChange={(e) => dispatch(setRelationType(e.target.value))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {availableRelationTypes.map(type => (
             <option key={type} value={type}>

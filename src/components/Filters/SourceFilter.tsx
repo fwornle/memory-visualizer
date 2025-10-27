@@ -37,13 +37,13 @@ export const SourceFilter: React.FC = () => {
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Learning Source</h3>
-      <div className="space-y-2">
+    <div className="bg-white rounded-lg shadow p-2">
+      <h3 className="text-xs font-semibold text-gray-700 mb-1.5">Learning Source</h3>
+      <div className="space-y-1">
         {options.map(option => (
           <label
             key={option.value}
-            className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded"
+            className="flex items-start space-x-2 cursor-pointer hover:bg-gray-50 p-1.5 rounded"
           >
             <input
               type="radio"
@@ -51,11 +51,11 @@ export const SourceFilter: React.FC = () => {
               value={option.value}
               checked={dataSource === option.value}
               onChange={() => handleChange(option.value)}
-              className="mt-1 text-blue-600 focus:ring-blue-500"
+              className="mt-0.5 text-blue-600 focus:ring-blue-500"
             />
             <div className="flex-1">
-              <div className="text-sm font-medium text-gray-900">{option.label}</div>
-              <div className="text-xs text-gray-500">{option.description}</div>
+              <div className="text-xs font-medium text-gray-900">{option.label}</div>
+              <div className="text-[10px] text-gray-500 leading-tight">{option.description}</div>
             </div>
           </label>
         ))}
