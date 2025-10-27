@@ -22,7 +22,7 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
 }) => {
   const dispatch = useAppDispatch();
   const { isLoading, error, stats } = useAppSelector(state => state.graph);
-  const { selectedTeams, dataSource } = useAppSelector(state => state.filters);
+  const { selectedTeams, dataSource, searchTerm } = useAppSelector(state => state.filters);
   const { dbHealthy } = useAppSelector(state => state.ui);
   const { selectedNode } = useAppSelector(state => state.navigation);
 
@@ -78,45 +78,32 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
         <TeamFilter />
         <SearchFilter />
         <TypeFilters />
-
-        {stats && (
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Statistics</h3>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Entities:</span>
-                <span className="font-medium">{stats.entityCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Relations:</span>
-                <span className="font-medium">{stats.relationCount}</span>
-              </div>
-              {stats.sourceCounts && (
-                <>
-                  <div className="flex justify-between text-blue-600">
-                    <span>Batch:</span>
-                    <span className="font-medium">{stats.sourceCounts.batch}</span>
-                  </div>
-                  <div className="flex justify-between text-red-600">
-                    <span>Online:</span>
-                    <span className="font-medium">{stats.sourceCounts.online}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Main graph area */}
       <div className="flex-1 flex flex-col">
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800">Graph Visualization</h2>
-          {stats && (
-            <div className="text-sm text-gray-600">
-              {stats.entityCount} entities, {stats.relationCount} relations
+          <div className="flex items-center gap-6">
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span className="font-semibold">Node Colors:</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#ADD8E6'}}></div>
+                <span>Batch/Manual</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#FFB6C1'}}></div>
+                <span>Online/Auto</span>
+              </div>
             </div>
-          )}
+            {/* Statistics */}
+            {stats && (
+              <div className="text-sm text-gray-600">
+                {stats.entityCount} entities, {stats.relationCount} relations
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 relative bg-gray-50">
@@ -150,7 +137,7 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
       {/* Node Details Sidebar (slides in from right when node selected) */}
       {selectedNode && (
         <div className="w-96 bg-white border-l border-gray-200 overflow-hidden">
-          <NodeDetails onOpenMarkdown={onOpenMarkdown} />
+          <NodeDetails onOpenMarkdown={onOpenMarkdown} searchTerm={searchTerm} />
         </div>
       )}
     </div>

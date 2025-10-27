@@ -16,21 +16,67 @@ export interface Link {
 
 /**
  * Filter entities by search term
+ * System nodes are ALWAYS visible regardless of search term
+ * Project nodes are ONLY visible if referenced by visible insight nodes
+ * Insight nodes are filtered by search term
  */
-export const filterBySearch = (entities: Entity[], searchTerm: string): Entity[] => {
+export const filterBySearch = (
+  entities: Entity[],
+  searchTerm: string,
+  relations: Relation[]
+): Entity[] => {
   if (!searchTerm) return entities;
 
   const term = searchTerm.toLowerCase();
-  return entities.filter(
-    entity =>
+
+  // Step 1: Separate System nodes and filter insight nodes
+  const systemNodes = entities.filter(entity => entity.entityType === 'System');
+
+  const filteredInsightNodes = entities.filter(entity => {
+    // Skip System and Project nodes
+    if (entity.entityType === 'System' || entity.entityType === 'Project') {
+      return false;
+    }
+
+    // Filter insight nodes by search term
+    return (
       entity.name.toLowerCase().includes(term) ||
       entity.entityType.toLowerCase().includes(term) ||
       entity.observations.some(obs => {
-        // Handle both string observations and object observations with content field
         const content = typeof obs === 'string' ? obs : obs?.content;
         return content && typeof content === 'string' && content.toLowerCase().includes(term);
       })
+    );
+  });
+
+  // Step 2: Find Project nodes referenced by INSIGHT nodes ONLY (not System nodes)
+  const insightNodeNames = new Set(filteredInsightNodes.map(e => e.name));
+  const referencedProjectNames = new Set<string>();
+
+  relations.forEach(rel => {
+    // Check if source is an INSIGHT node and target is a Project
+    if (insightNodeNames.has(rel.from)) {
+      const targetEntity = entities.find(e => e.name === rel.to || e.id === rel.to);
+      if (targetEntity?.entityType === 'Project') {
+        referencedProjectNames.add(targetEntity.name);
+      }
+    }
+    // Check if target is an INSIGHT node and source is a Project
+    if (insightNodeNames.has(rel.to)) {
+      const sourceEntity = entities.find(e => e.name === rel.from || e.id === rel.from);
+      if (sourceEntity?.entityType === 'Project') {
+        referencedProjectNames.add(sourceEntity.name);
+      }
+    }
+  });
+
+  // Step 3: Add referenced Project nodes
+  const referencedProjects = entities.filter(
+    e => e.entityType === 'Project' && referencedProjectNames.has(e.name)
   );
+
+  // Return: System nodes (always) + filtered insight nodes + referenced Project nodes
+  return [...systemNodes, ...filteredInsightNodes, ...referencedProjects];
 };
 
 /**

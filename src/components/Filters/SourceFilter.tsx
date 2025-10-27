@@ -60,19 +60,6 @@ export const SourceFilter: React.FC = () => {
           </label>
         ))}
       </div>
-
-      <div className="mt-3 pt-3 border-t border-gray-200">
-        <div className="text-xs text-gray-600">
-          <p className="mb-1">
-            <span className="inline-block w-3 h-3 bg-blue-200 rounded-full mr-1"></span>
-            <span className="font-medium">Batch:</span> Light blue nodes
-          </p>
-          <p>
-            <span className="inline-block w-3 h-3 bg-red-200 rounded-full mr-1"></span>
-            <span className="font-medium">Online:</span> Light red nodes
-          </p>
-        </div>
-      </div>
     </div>
   );
 };

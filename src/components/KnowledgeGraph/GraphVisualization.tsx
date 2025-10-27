@@ -1,7 +1,7 @@
 /**
  * Graph Visualization Component
  *
- * D3 force-directed graph rendering with autoscale and color coding.
+ * D3 force-directed graph rendering with color coding.
  * Pure presentation component - receives data from Redux via parent.
  */
 
@@ -18,8 +18,6 @@ import {
   filterByTeams,
   getRelationsForEntities,
   transformToD3Format,
-  calculateGraphBounds,
-  calculateCenterTransform,
 } from '../../utils/graphHelpers';
 
 export const GraphVisualization: React.FC = () => {
@@ -100,6 +98,25 @@ export const GraphVisualization: React.FC = () => {
     });
   }, [entities, relations, selectedTeams, searchTerm, entityType, relationType, dimensions]);
 
+  // Update selection rings when selectedNode changes
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    const svg = d3.select(svgRef.current);
+
+    // Hide all selection rings
+    svg.selectAll('.selection-ring')
+      .attr('opacity', 0);
+
+    // Show ring for currently selected node (if any)
+    if (currentSelectedNode) {
+      svg.selectAll('.node')
+        .filter((d: any) => d.id === currentSelectedNode.id)
+        .select('.selection-ring')
+        .attr('opacity', 1);
+    }
+  }, [currentSelectedNode]);
+
   // Calculate dimensions
   useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -142,10 +159,28 @@ export const GraphVisualization: React.FC = () => {
 
     // Apply all filters on unfrozen copies
     let filteredEntities = filterByTeams(unfrozenEntities, selectedTeams);
-    filteredEntities = filterBySearch(filteredEntities, searchTerm);
+    filteredEntities = filterBySearch(filteredEntities, searchTerm, unfrozenRelations);
     filteredEntities = filterByEntityType(filteredEntities, entityType);
 
     const filteredRelations = getRelationsForEntities(unfrozenRelations, filteredEntities, relationType);
+
+    // If relation type filter is active (not "All"), remove entities with no connections
+    if (relationType !== 'All' && filteredRelations.length > 0) {
+      const connectedEntityNames = new Set<string>();
+      filteredRelations.forEach(rel => {
+        connectedEntityNames.add(rel.from);
+        connectedEntityNames.add(rel.to);
+      });
+
+      filteredEntities = filteredEntities.filter(e =>
+        connectedEntityNames.has(e.name) || connectedEntityNames.has(e.id)
+      );
+
+      console.log('🔍 [DEBUG] After removing unconnected nodes:', {
+        remainingEntities: filteredEntities.length,
+        connectedNames: connectedEntityNames.size
+      });
+    }
 
     // Transform to D3 format - this already creates mutable copies
     const { nodes, links } = transformToD3Format(filteredEntities, filteredRelations);
@@ -471,22 +506,6 @@ export const GraphVisualization: React.FC = () => {
 
       return d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended);
     }
-
-    // Autoscale after simulation stabilizes
-    simulation.on('end', () => {
-      const bounds = calculateGraphBounds(d3Nodes as any);
-      if (bounds) {
-        const transform = calculateCenterTransform(bounds, dimensions);
-        const zoomTransform = d3.zoomIdentity
-          .translate(transform.x, transform.y)
-          .scale(transform.scale);
-
-        svg
-          .transition()
-          .duration(750)
-          .call(zoomBehavior.transform as any, zoomTransform);
-      }
-    });
 
     // Cleanup
     return () => {

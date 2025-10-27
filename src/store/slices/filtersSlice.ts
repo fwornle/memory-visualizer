@@ -147,6 +147,16 @@ const filtersSlice = createSlice({
         localStorage.setItem('vkb_selectedTeams', JSON.stringify(state.selectedTeams));
       }
     });
+
+    // Handle loadGraphData to update available entity and relation types
+    builder.addCase('graph/loadData/fulfilled' as any, (state, action: any) => {
+      if (action.payload.availableEntityTypes) {
+        state.availableEntityTypes = action.payload.availableEntityTypes;
+      }
+      if (action.payload.availableRelationTypes) {
+        state.availableRelationTypes = action.payload.availableRelationTypes;
+      }
+    });
   },
 });
 

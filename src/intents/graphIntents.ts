@@ -56,7 +56,12 @@ interface LoadGraphDataParams {
  * This is the main data loading intent that respects both filters independently
  */
 export const loadGraphData = createAsyncThunk<
-  { entities: Entity[]; relations: Relation[] },
+  {
+    entities: Entity[];
+    relations: Relation[];
+    availableEntityTypes: string[];
+    availableRelationTypes: string[];
+  },
   LoadGraphDataParams | undefined,
   { state: RootState }
 >(
@@ -179,7 +184,17 @@ export const loadGraphData = createAsyncThunk<
       }, {} as Record<string, number>);
       console.log(`📊 [Intent] Source distribution:`, sourceCount);
 
-      return { entities, relations };
+      // Extract unique entity types and relation types for filter dropdowns
+      const uniqueEntityTypes = Array.from(new Set(entities.map(e => e.entityType))).sort();
+      const uniqueRelationTypes = Array.from(new Set(relations.map(r => r.type || r.relationType))).sort();
+
+      // Return data along with available types
+      return {
+        entities,
+        relations,
+        availableEntityTypes: ['All', ...uniqueEntityTypes],
+        availableRelationTypes: ['All', ...uniqueRelationTypes]
+      };
     } catch (error) {
       console.error('Failed to load graph data:', error);
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to load graph data');

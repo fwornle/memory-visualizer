@@ -11,9 +11,10 @@ import { selectNode, navigateBack, navigateForward } from '../../store/slices/na
 
 interface NodeDetailsProps {
   onOpenMarkdown: (filePath: string) => void;
+  searchTerm?: string;
 }
 
-export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown }) => {
+export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, searchTerm }) => {
   const dispatch = useAppDispatch();
   const { selectedNode, nodeHistory, nodeHistoryIndex } = useAppSelector(
     state => state.navigation
@@ -39,7 +40,26 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown }) => {
   const canGoBack = nodeHistoryIndex > 0;
   const canGoForward = nodeHistoryIndex < nodeHistory.length - 1;
 
-  // Helper to render text with clickable links
+  // Helper to highlight search term matches
+  const highlightText = (text: string): JSX.Element[] => {
+    if (!searchTerm || !text) return [<span key={0}>{text}</span>];
+
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+
+    return parts.map((part, index) => {
+      if (part.toLowerCase() === searchTerm.toLowerCase()) {
+        return (
+          <mark key={index} className="bg-yellow-200 font-semibold">
+            {part}
+          </mark>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
+  // Helper to render text with clickable links and highlighting
   const renderTextWithLinks = (text: string | null | undefined) => {
     if (!text || typeof text !== 'string') return null;
 
@@ -81,7 +101,8 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown }) => {
           );
         }
       }
-      return <span key={index}>{part}</span>;
+      // Apply highlighting to non-URL text
+      return <span key={index}>{highlightText(part)}</span>;
     });
   };
 
@@ -122,9 +143,9 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Name and Type */}
         <div>
-          <h4 className="text-2xl font-bold text-gray-900 mb-1">{selectedNode.name}</h4>
+          <h4 className="text-2xl font-bold text-gray-900 mb-1">{highlightText(selectedNode.name)}</h4>
           <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-            {selectedNode.entityType}
+            {highlightText(selectedNode.entityType)}
           </span>
         </div>
 
