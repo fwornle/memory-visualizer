@@ -419,14 +419,14 @@ export const GraphVisualization: React.FC = () => {
         event.stopPropagation();
       });
 
-    // Selection ring
+    // Selection ring (red circle highlight)
     node
       .append('circle')
       .attr('class', 'selection-ring')
-      .attr('r', 16)
+      .attr('r', 18)
       .attr('fill', 'none')
-      .attr('stroke', '#ff6b6b')
-      .attr('stroke-width', 3)
+      .attr('stroke', '#ff0000')
+      .attr('stroke-width', 4)
       .attr('opacity', (d) => (currentSelectedNode?.id === d.id ? 1 : 0));
 
     // Node circles with color coding

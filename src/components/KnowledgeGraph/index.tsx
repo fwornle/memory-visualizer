@@ -16,6 +16,7 @@ import { SearchFilter } from '../Filters/SearchFilter';
 import { TypeFilters } from '../Filters/TypeFilters';
 import { GraphVisualization } from './GraphVisualization';
 import { NodeDetails } from './NodeDetails';
+import { HistorySidebar } from './HistorySidebar';
 
 export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => void }> = ({
   onOpenMarkdown,
@@ -35,11 +36,12 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
       // Check database health
       try {
         const health = await dispatch(checkDatabaseHealth()).unwrap();
-        // Accept both 'healthy' and 'degraded' as valid (degraded means Qdrant is down but GraphDB works)
+        // GraphDB is REQUIRED for knowledge data (SQLite is metadata only)
         const isHealthy = health.status === 'healthy' || health.status === 'degraded';
-        dispatch(setDbHealthy(isHealthy && health.graph === true));
+        const hasGraphDB = health.graph === true;
+        dispatch(setDbHealthy(isHealthy && hasGraphDB));
         dispatch(setUseDatabase(true));
-        console.log('✅ Database health:', health, 'dbHealthy:', isHealthy && health.graph === true);
+        console.log('✅ Database health:', health, 'dbHealthy:', isHealthy && hasGraphDB);
       } catch (error) {
         console.warn('⚠️ Database unavailable:', error);
         dispatch(setDbHealthy(false));
@@ -140,6 +142,9 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
           <NodeDetails onOpenMarkdown={onOpenMarkdown} searchTerm={searchTerm} />
         </div>
       )}
+
+      {/* History Sidebar (shows on right when no node selected) */}
+      {!selectedNode && <HistorySidebar />}
     </div>
   );
 };

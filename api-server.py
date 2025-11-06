@@ -33,17 +33,17 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         # Team management endpoints (existing)
-        if parsed.path == '/api/teams':
-            self.handle_get_teams()
+        if parsed.path == '/api/teams' or parsed.path == '/api/available-teams':
+            self.handle_get_available_teams()
         elif parsed.path == '/api/current-teams':
             self.handle_get_current_teams()
-        elif parsed.path == '/api/available-teams':
-            self.handle_get_available_teams()
         elif parsed.path == '/api/config':
             self.handle_get_config()
         elif parsed.path == '/health':
             self.handle_health_check()
         # Database query endpoints (new)
+        elif parsed.path == '/api/health':
+            self.handle_database_query('health', parsed.query)
         elif parsed.path == '/api/entities':
             self.handle_database_query('entities', parsed.query)
         elif parsed.path == '/api/relations':
@@ -90,7 +90,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def handle_get_available_teams(self):
         """Get list of available teams by querying GraphDB directly."""
-        coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Navigate from memory-visualizer to coding root
+        coding_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         query_script = os.path.join(coding_path, 'lib', 'vkb-server', 'db-query-cli.js')
 
         if not os.path.exists(query_script):
@@ -101,13 +102,18 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         try:
+            # Prepare environment with correct export directory
+            query_env = os.environ.copy()
+            query_env['KNOWLEDGE_EXPORT_DIR'] = os.path.join(coding_path, '.data', 'knowledge-export')
+
             # Query GraphDB for all teams
             result = subprocess.run(
                 ['node', query_script, 'teams', '{}'],
                 capture_output=True,
                 text=True,
                 timeout=10,
-                cwd=coding_path
+                cwd=coding_path,
+                env=query_env
             )
 
             if result.returncode == 0:
@@ -168,25 +174,26 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Update KNOWLEDGE_VIEW env var and reload visualization."""
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
-        
+
         try:
             data = json.loads(post_data)
             teams = data.get('teams', [])
-            
+
             if not teams:
                 teams = ['coding']
-            
+
             # Update environment variable
             teams_str = ','.join(teams)
             os.environ['KNOWLEDGE_VIEW'] = teams_str
-            
+
             # Trigger data regeneration by deleting memory.json
             dist_path = os.path.join(os.path.dirname(__file__), 'dist', 'memory.json')
             if os.path.exists(dist_path):
                 os.remove(dist_path)
-            
+
             # Run data processor to regenerate with new teams
-            coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            # Navigate from memory-visualizer to coding root
+            coding_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             vkb_cli = os.path.join(coding_path, 'bin', 'vkb-cli.js')
             
             # Verify VKB CLI exists
@@ -255,7 +262,8 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_database_query(self, query_type, query_params):
         """Proxy database queries to Node.js backend."""
-        coding_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Navigate from memory-visualizer to coding root
+        coding_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         query_script = os.path.join(coding_path, 'lib', 'vkb-server', 'db-query-cli.js')
 
         if not os.path.exists(query_script):
@@ -272,13 +280,18 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Convert to JSON for CLI
             params_json = {k: v[0] if len(v) == 1 else v for k, v in params.items()}
 
+            # Prepare environment with correct export directory
+            query_env = os.environ.copy()
+            query_env['KNOWLEDGE_EXPORT_DIR'] = os.path.join(coding_path, '.data', 'knowledge-export')
+
             # Call Node.js CLI with query type and params
             result = subprocess.run(
                 ['node', query_script, query_type, json.dumps(params_json)],
                 capture_output=True,
                 text=True,
                 timeout=10,  # 10 second timeout
-                cwd=coding_path
+                cwd=coding_path,
+                env=query_env
             )
 
             if result.returncode == 0:
