@@ -225,14 +225,15 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                   pre: ({node, children, ...props}) => {
                     // Check if this is a mermaid code block
                     const codeElement = React.Children.toArray(children)[0] as React.ReactElement;
+                    // Check if this code block has the mermaid language class
                     if (
-                      codeElement && 
-                      codeElement.type === 'code' && 
-                      codeElement.props.className?.includes('language-mermaid')
+                      codeElement &&
+                      codeElement.props?.className?.includes('language-mermaid')
                     ) {
+                      console.log('[MarkdownViewer] Rendering Mermaid diagram');
                       return (
-                        <MermaidDiagram 
-                          chart={String(codeElement.props.children)} 
+                        <MermaidDiagram
+                          chart={String(codeElement.props.children)}
                         />
                       );
                     }

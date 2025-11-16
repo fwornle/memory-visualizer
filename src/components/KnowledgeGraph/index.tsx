@@ -36,12 +36,11 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
       // Check database health
       try {
         const health = await dispatch(checkDatabaseHealth()).unwrap();
-        // GraphDB is REQUIRED for knowledge data (SQLite is metadata only)
+        // Allow loading if status is healthy or degraded (degraded means data files exist but graph DB may be unavailable)
         const isHealthy = health.status === 'healthy' || health.status === 'degraded';
-        const hasGraphDB = health.graph === true;
-        dispatch(setDbHealthy(isHealthy && hasGraphDB));
+        dispatch(setDbHealthy(isHealthy));
         dispatch(setUseDatabase(true));
-        console.log('✅ Database health:', health, 'dbHealthy:', isHealthy && hasGraphDB);
+        console.log('✅ Database health:', health, 'dbHealthy:', isHealthy);
       } catch (error) {
         console.warn('⚠️ Database unavailable:', error);
         dispatch(setDbHealthy(false));

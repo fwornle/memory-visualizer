@@ -75,6 +75,8 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           const relativePath = isLocalMarkdown
             ? part.replace('http://localhost:8080/', '')
             : part;
+          // Extract just the filename for display
+          const displayName = relativePath.split('/').pop()?.replace('.md', '') || relativePath;
           return (
             <button
               key={index}
@@ -83,8 +85,9 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
                 onOpenMarkdown(relativePath);
               }}
               className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
+              title={relativePath} // Show full path on hover
             >
-              {part}
+              {displayName}
             </button>
           );
         } else {
