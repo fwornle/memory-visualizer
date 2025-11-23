@@ -237,3 +237,32 @@ export const loadGraphStats = createAsyncThunk<
     }
   }
 );
+
+/**
+ * Delete an entity and all its relationships
+ */
+export const deleteEntity = createAsyncThunk<
+  { deleted: string; team: string },
+  { name: string; team: string },
+  { state: RootState }
+>(
+  'graph/deleteEntity',
+  async ({ name, team }, { dispatch, rejectWithValue }) => {
+    try {
+      console.log(`🗑️ [Intent] Deleting entity: ${name} (team: ${team})`);
+
+      // Call the API to delete the entity
+      const result = await dbClient.deleteEntity(name, team);
+
+      console.log(`✅ [Intent] Entity deleted successfully:`, result);
+
+      // Refresh graph data to reflect the deletion
+      await dispatch(loadGraphData()).unwrap();
+
+      return { deleted: name, team };
+    } catch (error) {
+      console.error('Failed to delete entity:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to delete entity');
+    }
+  }
+);

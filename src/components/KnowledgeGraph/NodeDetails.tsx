@@ -5,9 +5,11 @@
  * observations, metadata, and related entities.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { selectNode, navigateBack, navigateForward } from '../../store/slices/navigationSlice';
+import { deleteEntity } from '../../intents/graphIntents';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface NodeDetailsProps {
   onOpenMarkdown: (filePath: string) => void;
@@ -20,6 +22,10 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
     state => state.navigation
   );
   const { relations } = useAppSelector(state => state.graph);
+
+  // State for delete confirmation
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   if (!selectedNode) {
     return (
@@ -35,6 +41,34 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
 
   const handleClose = () => {
     dispatch(selectNode(null));
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    const team = selectedNode.metadata?.team || 'coding';
+
+    try {
+      setIsDeleting(true);
+      await dispatch(deleteEntity({ name: selectedNode.name, team })).unwrap();
+
+      // Close the sidebar after successful deletion
+      dispatch(selectNode(null));
+
+      // Close the dialog
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('Failed to delete entity:', error);
+      alert(`Failed to delete entity: ${error}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
   };
 
   const canGoBack = nodeHistoryIndex > 0;
@@ -123,21 +157,33 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           </button>
         </div>
 
-        {/* Navigation buttons */}
-        <div className="flex gap-2">
+        {/* Navigation and Delete buttons */}
+        <div className="flex gap-2 justify-between">
+          <div className="flex gap-2">
+            <button
+              onClick={() => dispatch(navigateBack())}
+              disabled={!canGoBack}
+              className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ← Back
+            </button>
+            <button
+              onClick={() => dispatch(navigateForward())}
+              disabled={!canGoForward}
+              className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Forward →
+            </button>
+          </div>
+
+          {/* Delete button */}
           <button
-            onClick={() => dispatch(navigateBack())}
-            disabled={!canGoBack}
-            className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleDeleteClick}
+            disabled={isDeleting}
+            className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            title="Delete this entity and all its relationships"
           >
-            ← Back
-          </button>
-          <button
-            onClick={() => dispatch(navigateForward())}
-            disabled={!canGoForward}
-            className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Forward →
+            {isDeleting ? '⏳' : '🗑️'} Delete
           </button>
         </div>
       </div>
@@ -234,6 +280,18 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           </div>
         )}
       </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Delete Entity"
+        message={`Are you sure you want to delete "${selectedNode.name}"? This will also delete all ${outgoing.length + incoming.length} relationship(s) connected to this entity. This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </div>
   );
 };

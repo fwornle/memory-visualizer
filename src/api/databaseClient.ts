@@ -136,6 +136,26 @@ export class DatabaseClient {
   }
 
   /**
+   * Delete an entity and all its relationships
+   */
+  async deleteEntity(name: string, team: string = 'coding'): Promise<{ success: boolean; deleted: string; message: string }> {
+    const params = new URLSearchParams({ team });
+    const response = await fetch(`${this.baseUrl}/api/entities/${encodeURIComponent(name)}?${params.toString()}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to delete entity: ${response.statusText}`);
+    }
+
+    return await response.json();
+  }
+
+  /**
    * Transform database entities and relations to D3 graph format
    */
   transformToGraphData(entities: Entity[], relations: Relation[]): GraphData {
