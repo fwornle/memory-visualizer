@@ -46,6 +46,12 @@ export interface GraphStats {
   };
 }
 
+export interface DeletedEntitySnapshot {
+  entity: Entity;
+  relations: Relation[];
+  timestamp: string;
+}
+
 interface GraphState {
   entities: Entity[];
   relations: Relation[];
@@ -53,6 +59,7 @@ interface GraphState {
   error: string | null;
   stats: GraphStats | null;
   lastUpdated: string | null;
+  undoStack: DeletedEntitySnapshot[];
 }
 
 const initialState: GraphState = {
@@ -62,6 +69,7 @@ const initialState: GraphState = {
   error: null,
   stats: null,
   lastUpdated: null,
+  undoStack: [],
 };
 
 const graphSlice = createSlice({
@@ -153,6 +161,25 @@ const graphSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+
+    // Push deleted entity to undo stack (called when entity is deleted)
+    pushDeletedEntity: (state, action: PayloadAction<DeletedEntitySnapshot>) => {
+      // Keep max 10 items in undo stack
+      if (state.undoStack.length >= 10) {
+        state.undoStack.shift();
+      }
+      state.undoStack.push(action.payload);
+    },
+
+    // Pop from undo stack (called when undo is triggered)
+    popDeletedEntity: (state) => {
+      state.undoStack.pop();
+    },
+
+    // Clear undo stack
+    clearUndoStack: (state) => {
+      state.undoStack = [];
+    },
   },
   // Handle async thunk actions
   extraReducers: (builder) => {
@@ -198,6 +225,28 @@ const graphSlice = createSlice({
         console.log(`✅ [GraphSlice] Updated stats:`, state.stats);
       }
     );
+    // Handle deleteEntity fulfilled - push to undo stack
+    builder.addMatcher(
+      (action) => action.type === 'graph/deleteEntity/fulfilled',
+      (state, action: any) => {
+        state.isLoading = false;
+        if (action.payload?.deletedEntity) {
+          // Push to undo stack
+          if (state.undoStack.length >= 10) {
+            state.undoStack.shift();
+          }
+          state.undoStack.push(action.payload.deletedEntity);
+        }
+      }
+    );
+    // Handle restoreEntity fulfilled - pop from undo stack
+    builder.addMatcher(
+      (action) => action.type === 'graph/restoreEntity/fulfilled',
+      (state) => {
+        state.isLoading = false;
+        state.undoStack.pop();
+      }
+    );
     builder.addMatcher(
       (action) => action.type.endsWith('/rejected') && action.type.startsWith('graph/'),
       (state, action: any) => {
@@ -215,6 +264,9 @@ export const {
   loadFailure,
   clearGraph,
   clearError,
+  pushDeletedEntity,
+  popDeletedEntity,
+  clearUndoStack,
 } = graphSlice.actions;
 
 export default graphSlice.reducer;

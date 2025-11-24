@@ -2,6 +2,7 @@ import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { openMarkdown, closeMarkdown, markdownBack, markdownForward } from "./store/slices/navigationSlice";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import MarkdownViewer from "./components/MarkdownViewer";
+import { UndoToast } from "./components/UndoToast";
 
 function App() {
   const dispatch = useAppDispatch();
@@ -41,6 +42,7 @@ function App() {
           historyIndex={markdownHistoryIndex}
         />
       )}
+      <UndoToast />
     </div>
   );
 }

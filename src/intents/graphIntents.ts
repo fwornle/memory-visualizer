@@ -242,14 +242,27 @@ export const loadGraphStats = createAsyncThunk<
  * Delete an entity and all its relationships
  */
 export const deleteEntity = createAsyncThunk<
-  { deleted: string; team: string },
+  { deleted: string; team: string; deletedEntity: any },
   { name: string; team: string },
   { state: RootState }
 >(
   'graph/deleteEntity',
-  async ({ name, team }, { dispatch, rejectWithValue }) => {
+  async ({ name, team }, { dispatch, rejectWithValue, getState }) => {
     try {
       console.log(`🗑️ [Intent] Deleting entity: ${name} (team: ${team})`);
+
+      // Get entity data before deletion for undo capability
+      const state = getState();
+      const entityToDelete = state.graph.entities.find(e => e.name === name && e.metadata?.team === team);
+
+      if (!entityToDelete) {
+        throw new Error(`Entity "${name}" not found in current state`);
+      }
+
+      // Get all relations involving this entity for undo capability
+      const relationsToDelete = state.graph.relations.filter(
+        r => r.from === name || r.to === name
+      );
 
       // Call the API to delete the entity
       const result = await dbClient.deleteEntity(name, team);
@@ -259,10 +272,72 @@ export const deleteEntity = createAsyncThunk<
       // Refresh graph data to reflect the deletion
       await dispatch(loadGraphData()).unwrap();
 
-      return { deleted: name, team };
+      return {
+        deleted: name,
+        team,
+        deletedEntity: {
+          entity: entityToDelete,
+          relations: relationsToDelete,
+          timestamp: new Date().toISOString()
+        }
+      };
     } catch (error) {
       console.error('Failed to delete entity:', error);
       return rejectWithValue(error instanceof Error ? error.message : 'Failed to delete entity');
+    }
+  }
+);
+
+/**
+ * Restore a deleted entity (undo deletion)
+ */
+export const restoreEntity = createAsyncThunk<
+  { restored: string; team: string },
+  { entity: any; relations: any[]; team: string },
+  { state: RootState }
+>(
+  'graph/restoreEntity',
+  async ({ entity, relations, team }, { dispatch, rejectWithValue }) => {
+    try {
+      console.log(`🔄 [Intent] Restoring entity: ${entity.name} (team: ${team})`);
+
+      // Recreate the entity via API
+      const entityData = {
+        name: entity.name,
+        entityType: entity.entityType,
+        observations: entity.observations || [],
+        significance: entity.metadata?.significance,
+        team
+      };
+
+      await dbClient.createEntity(entityData);
+
+      // Recreate all relations
+      for (const relation of relations) {
+        try {
+          await dbClient.createRelation({
+            from: relation.from,
+            to: relation.to,
+            relationType: relation.relationType || relation.type || 'related-to',
+            team
+          });
+        } catch (error) {
+          console.warn(`Failed to restore relation ${relation.from} → ${relation.to}:`, error);
+        }
+      }
+
+      console.log(`✅ [Intent] Entity restored successfully: ${entity.name}`);
+
+      // Refresh graph data to reflect the restoration
+      await dispatch(loadGraphData()).unwrap();
+
+      return {
+        restored: entity.name,
+        team
+      };
+    } catch (error) {
+      console.error('Failed to restore entity:', error);
+      return rejectWithValue(error instanceof Error ? error.message : 'Failed to restore entity');
     }
   }
 );

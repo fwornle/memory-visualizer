@@ -136,6 +136,54 @@ export class DatabaseClient {
   }
 
   /**
+   * Create a new entity
+   */
+  async createEntity(entityData: { name: string; entityType: string; observations: string[]; significance?: number; team: string }): Promise<{ success: boolean; entity: any }> {
+    const response = await fetch(`${this.baseUrl}/api/entities`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(entityData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to create entity: ${response.statusText}`);
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Create a new relation
+   */
+  async createRelation(relationData: { from: string; to: string; relationType: string; team: string }): Promise<{ success: boolean; relation: any }> {
+    // API expects 'type' parameter, not 'relationType'
+    const apiData = {
+      from: relationData.from,
+      to: relationData.to,
+      type: relationData.relationType,
+      team: relationData.team
+    };
+
+    const response = await fetch(`${this.baseUrl}/api/relations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(apiData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to create relation: ${response.statusText}`);
+    }
+
+    return await response.json();
+  }
+
+  /**
    * Delete an entity and all its relationships
    */
   async deleteEntity(name: string, team: string = 'coding'): Promise<{ success: boolean; deleted: string; message: string }> {
