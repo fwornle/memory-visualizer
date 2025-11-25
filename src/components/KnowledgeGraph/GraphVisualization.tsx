@@ -384,13 +384,40 @@ export const GraphVisualization: React.FC = () => {
       .attr('marker-end', 'url(#end)')
       .attr('fill', 'none');
 
-    // Link labels
+    // Aggregate links between same node pairs to show combined labels
+    // Key: "sourceId-targetId" (sorted alphabetically for bidirectional dedup)
+    const linkGroupsMap = new Map<string, { links: typeof d3Links; types: Set<string> }>();
+
+    for (const link of d3Links) {
+      // Create a consistent key regardless of direction
+      const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+      const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+      const key = [sourceId, targetId].sort().join('||');
+
+      if (!linkGroupsMap.has(key)) {
+        linkGroupsMap.set(key, { links: [], types: new Set() });
+      }
+      const group = linkGroupsMap.get(key)!;
+      group.links.push(link);
+      group.types.add(link.type);
+    }
+
+    // Convert to array for D3 binding - one entry per unique node pair
+    const aggregatedLinkLabels = Array.from(linkGroupsMap.entries()).map(([key, group]) => ({
+      key,
+      // Use the first link for positioning (they share endpoints)
+      representativeLink: group.links[0],
+      // Combine all unique relation types
+      label: Array.from(group.types).join(', ')
+    }));
+
+    // Link labels - now using aggregated labels
     const linkText = g
       .append('g')
       .selectAll('text')
-      .data(d3Links)
+      .data(aggregatedLinkLabels)
       .join('text')
-      .text((d) => d.type)
+      .text((d) => d.label)
       .attr('font-size', 10)
       .attr('text-anchor', 'middle')
       .attr('dy', -5)
@@ -479,8 +506,19 @@ export const GraphVisualization: React.FC = () => {
         return `M${sourceX},${sourceY}A${dr},${dr} 0 0,1 ${targetX},${targetY}`;
       });
 
-      linkText.attr('x', (d: any) => ((d.source.x || 0) + (d.target.x || 0)) / 2);
-      linkText.attr('y', (d: any) => ((d.source.y || 0) + (d.target.y || 0)) / 2);
+      // Position aggregated link labels at the midpoint of their representative link
+      linkText.attr('x', (d: any) => {
+        const link = d.representativeLink;
+        const sourceX = typeof link.source === 'object' ? link.source.x : 0;
+        const targetX = typeof link.target === 'object' ? link.target.x : 0;
+        return ((sourceX || 0) + (targetX || 0)) / 2;
+      });
+      linkText.attr('y', (d: any) => {
+        const link = d.representativeLink;
+        const sourceY = typeof link.source === 'object' ? link.source.y : 0;
+        const targetY = typeof link.target === 'object' ? link.target.y : 0;
+        return ((sourceY || 0) + (targetY || 0)) / 2;
+      });
 
       node.attr('transform', (d) => `translate(${d.x || 0},${d.y || 0})`);
     });
