@@ -123,6 +123,56 @@ export const HistorySidebar: React.FC = () => {
     return 'bg-gray-100 text-gray-800';
   };
 
+  const getDiffBadges = (entity: Entity): JSX.Element | null => {
+    const diffStats = entity.metadata?.diffStats;
+    if (!diffStats) return null;
+
+    const badges: JSX.Element[] = [];
+
+    // "New" badge for entities created in last 24h
+    if (diffStats.isNew) {
+      badges.push(
+        <span
+          key="new"
+          className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-medium"
+          title="Created in the last 24 hours"
+        >
+          New
+        </span>
+      );
+    }
+
+    // "+N obs" badge for added observations
+    if (diffStats.observationsAdded && diffStats.observationsAdded > 0) {
+      badges.push(
+        <span
+          key="obs-added"
+          className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium"
+          title={`${diffStats.observationsAdded} observation${diffStats.observationsAdded > 1 ? 's' : ''} added`}
+        >
+          +{diffStats.observationsAdded} obs
+        </span>
+      );
+    }
+
+    // "Updated" badge for significant changes (but not new)
+    if (diffStats.hasSignificantChanges && !diffStats.isNew && !diffStats.observationsAdded) {
+      badges.push(
+        <span
+          key="updated"
+          className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-medium"
+          title="Content has been modified"
+        >
+          Updated
+        </span>
+      );
+    }
+
+    if (badges.length === 0) return null;
+
+    return <div className="flex gap-1 flex-wrap">{badges}</div>;
+  };
+
   return (
     <div className="w-80 bg-gray-50 border-l border-gray-200 overflow-y-auto">
       <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 z-10">
@@ -142,6 +192,7 @@ export const HistorySidebar: React.FC = () => {
           historyItems.map((entity, index) => {
             const timestamp = entity.metadata?.lastModified;
             const source = entity.metadata?.source;
+            const diffBadges = getDiffBadges(entity);
 
             return (
               <button
@@ -168,6 +219,11 @@ export const HistorySidebar: React.FC = () => {
                     </span>
                   )}
                 </div>
+                {diffBadges && (
+                  <div className="mt-1.5">
+                    {diffBadges}
+                  </div>
+                )}
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <svg

@@ -7,9 +7,51 @@
 
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { DatabaseClient } from '../api/databaseClient';
-import type { Entity, Relation } from '../store/slices/graphSlice';
+import type { Entity, Relation, DiffStats } from '../store/slices/graphSlice';
 import type { DataSource } from '../store/slices/filtersSlice';
 import type { RootState } from '../store';
+
+// Helper to calculate diff stats for an entity
+function calculateDiffStats(entity: any, existingEntities: Entity[]): DiffStats {
+  const now = new Date();
+  const lastModified = entity.lastModified ? new Date(entity.lastModified) : null;
+  const createdAt = entity.createdAt ? new Date(entity.createdAt) : lastModified;
+
+  const diffStats: DiffStats = {};
+
+  // Check if entity is "new" (created in last 24 hours)
+  if (createdAt) {
+    const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    diffStats.isNew = hoursSinceCreation < 24;
+  }
+
+  // Find existing version of this entity if any (for comparison)
+  const existingEntity = existingEntities.find(e => e.name === entity.name);
+
+  if (existingEntity) {
+    // Compare observation counts
+    const currentObsCount = entity.observations?.length || 0;
+    const previousObsCount = existingEntity.observations?.length || 0;
+
+    if (currentObsCount > previousObsCount) {
+      diffStats.observationsAdded = currentObsCount - previousObsCount;
+    }
+    diffStats.previousObservationCount = previousObsCount;
+
+    // Check for significant changes (content differences)
+    if (currentObsCount !== previousObsCount) {
+      diffStats.hasSignificantChanges = true;
+    }
+  } else {
+    // No existing entity - this is a new entry
+    if (!diffStats.isNew) {
+      // Entity exists in DB but not in current view - might be first load
+      diffStats.observationsAdded = entity.observations?.length || 0;
+    }
+  }
+
+  return diffStats;
+}
 
 // VKB server runs on port 8080
 const dbClient = new DatabaseClient('http://localhost:8080');
@@ -108,6 +150,9 @@ export const loadGraphData = createAsyncThunk<
       console.log(`🔍 [Intent] Starting entity transformation...`);
       console.log(`🔍 [Intent] First entity structure:`, graphData.entities[0]);
 
+      // Get existing entities from state for diff calculation
+      const existingEntities = state.graph.entities;
+
       const entities: Entity[] = graphData.entities.map((e, index) => {
         if (index === 0) {
           console.log(`🔍 [Intent] Mapping first entity:`, {
@@ -119,6 +164,10 @@ export const loadGraphData = createAsyncThunk<
             allKeys: Object.keys(e)
           });
         }
+
+        // Calculate diff stats by comparing with existing entities in state
+        const diffStats = calculateDiffStats(e, existingEntities);
+
         return {
           id: e.id,
           name: e.name,
@@ -131,7 +180,9 @@ export const loadGraphData = createAsyncThunk<
             team: e.team,
             confidence: e.confidence,
             lastModified: e.lastModified,
+            createdAt: e.createdAt || e.lastModified, // Use lastModified as fallback for createdAt
             teams: e.metadata?.teams,
+            diffStats: diffStats,
           },
         };
       });

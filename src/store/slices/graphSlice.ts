@@ -7,6 +7,14 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export interface DiffStats {
+  isNew?: boolean;              // Created recently (last 24h)
+  observationsAdded?: number;   // Number of observations added in last update
+  observationsModified?: number; // Number of observations changed
+  hasSignificantChanges?: boolean; // Substantial content changes detected
+  previousObservationCount?: number; // For comparison
+}
+
 export interface Entity {
   id?: string;
   name: string;
@@ -19,7 +27,9 @@ export interface Entity {
     team?: string;
     confidence?: number;
     lastModified?: string;
+    createdAt?: string;
     teams?: string[];
+    diffStats?: DiffStats;
   };
 }
 
