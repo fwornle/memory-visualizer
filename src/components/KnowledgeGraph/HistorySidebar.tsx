@@ -9,16 +9,36 @@
  * - Only visible when no node is selected (hidden when NodeDetails is open)
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectNode } from '../../store/slices/navigationSlice';
 import { Entity } from '../../store/slices/graphSlice';
+import { updateBaseline, hasBaseline, getBaselineAge } from '../../intents/graphIntents';
 
 export const HistorySidebar: React.FC = () => {
   const dispatch = useAppDispatch();
   const { entities } = useAppSelector(state => state.graph);
   const { selectedTeams, dataSource } = useAppSelector(state => state.filters);
   const { selectedNode } = useAppSelector(state => state.navigation);
+
+  // Track whether baseline has been set and force re-render after marking read
+  const [baselineVersion, setBaselineVersion] = useState(0);
+
+  // Count entities with change badges
+  const changesCount = useMemo(() => {
+    return entities.filter(e => {
+      const diffStats = e.metadata?.diffStats;
+      return diffStats?.isNew || diffStats?.observationsAdded;
+    }).length;
+  }, [entities]);
+
+  // Handle "Mark All as Read" button click
+  const handleMarkAllAsRead = useCallback(() => {
+    updateBaseline(entities);
+    setBaselineVersion(v => v + 1); // Trigger re-render
+    // Force page reload to recalculate diff stats with new baseline
+    window.location.reload();
+  }, [entities]);
 
   // Don't show history sidebar when a node is selected (NodeDetails is open)
   if (selectedNode) {
@@ -176,7 +196,21 @@ export const HistorySidebar: React.FC = () => {
   return (
     <div className="w-80 bg-gray-50 border-l border-gray-200 overflow-y-auto">
       <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 z-10">
-        <h2 className="text-lg font-semibold text-gray-800">History</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-800">History</h2>
+          {changesCount > 0 && (
+            <button
+              onClick={handleMarkAllAsRead}
+              className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors flex items-center gap-1"
+              title="Mark all changes as read and reset baseline"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Mark read ({changesCount})
+            </button>
+          )}
+        </div>
         <p className="text-xs text-gray-600 mt-1">
           {historyItems.length} insight{historyItems.length !== 1 ? 's' : ''} • Newest first
         </p>

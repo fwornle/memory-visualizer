@@ -11,46 +11,111 @@ import type { Entity, Relation, DiffStats } from '../store/slices/graphSlice';
 import type { DataSource } from '../store/slices/filtersSlice';
 import type { RootState } from '../store';
 
-// Helper to calculate diff stats for an entity
-function calculateDiffStats(entity: any, existingEntities: Entity[]): DiffStats {
-  const now = new Date();
-  const lastModified = entity.lastModified ? new Date(entity.lastModified) : null;
-  const createdAt = entity.createdAt ? new Date(entity.createdAt) : lastModified;
+// LocalStorage key for baseline snapshot
+const BASELINE_STORAGE_KEY = 'vkb-entity-baseline';
 
+interface EntityBaseline {
+  observationCount: number;
+  lastModified: string | null;
+  seenAt: string; // When this entity was first seen/marked as read
+}
+
+interface BaselineSnapshot {
+  entities: Record<string, EntityBaseline>; // key is entity name
+  savedAt: string; // When baseline was last saved
+}
+
+// Load baseline from localStorage
+function loadBaseline(): BaselineSnapshot | null {
+  try {
+    const stored = localStorage.getItem(BASELINE_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn('[VKB] Failed to load baseline from localStorage:', e);
+  }
+  return null;
+}
+
+// Save baseline to localStorage
+function saveBaseline(snapshot: BaselineSnapshot): void {
+  try {
+    localStorage.setItem(BASELINE_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (e) {
+    console.warn('[VKB] Failed to save baseline to localStorage:', e);
+  }
+}
+
+// Helper to calculate diff stats for an entity using localStorage baseline
+function calculateDiffStats(entity: any, baseline: BaselineSnapshot | null): DiffStats {
   const diffStats: DiffStats = {};
+  const entityName = entity.name;
+  const currentObsCount = entity.observations?.length || 0;
+  const currentLastModified = entity.lastModified || null;
 
-  // Check if entity is "new" (created in last 24 hours)
-  if (createdAt) {
-    const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-    diffStats.isNew = hoursSinceCreation < 24;
+  // If no baseline exists, this is first load - no badges shown
+  if (!baseline) {
+    return diffStats;
   }
 
-  // Find existing version of this entity if any (for comparison)
-  const existingEntity = existingEntities.find(e => e.name === entity.name);
+  const baselineEntry = baseline.entities[entityName];
 
-  if (existingEntity) {
-    // Compare observation counts
-    const currentObsCount = entity.observations?.length || 0;
-    const previousObsCount = existingEntity.observations?.length || 0;
+  if (!baselineEntry) {
+    // Entity didn't exist in baseline - it's NEW
+    diffStats.isNew = true;
+  } else {
+    // Entity exists in baseline - check for observation changes
+    const previousObsCount = baselineEntry.observationCount || 0;
 
     if (currentObsCount > previousObsCount) {
       diffStats.observationsAdded = currentObsCount - previousObsCount;
-    }
-    diffStats.previousObservationCount = previousObsCount;
-
-    // Check for significant changes (content differences)
-    if (currentObsCount !== previousObsCount) {
       diffStats.hasSignificantChanges = true;
     }
-  } else {
-    // No existing entity - this is a new entry
-    if (!diffStats.isNew) {
-      // Entity exists in DB but not in current view - might be first load
-      diffStats.observationsAdded = entity.observations?.length || 0;
+
+    // Check if lastModified changed (indicates any content update)
+    if (currentLastModified && baselineEntry.lastModified &&
+        currentLastModified !== baselineEntry.lastModified) {
+      diffStats.hasSignificantChanges = true;
     }
+
+    diffStats.previousObservationCount = previousObsCount;
   }
 
   return diffStats;
+}
+
+// Export function to update baseline (call when user wants to "mark all as read")
+export function updateBaseline(entities: Entity[]): void {
+  const newBaseline: BaselineSnapshot = {
+    entities: {},
+    savedAt: new Date().toISOString()
+  };
+
+  for (const entity of entities) {
+    newBaseline.entities[entity.name] = {
+      observationCount: entity.observations?.length || 0,
+      lastModified: entity.metadata?.lastModified || null,
+      seenAt: new Date().toISOString()
+    };
+  }
+
+  saveBaseline(newBaseline);
+  console.log('[VKB] Baseline updated with', Object.keys(newBaseline.entities).length, 'entities');
+}
+
+// Export function to check if baseline exists
+export function hasBaseline(): boolean {
+  return loadBaseline() !== null;
+}
+
+// Export function to get baseline age in hours
+export function getBaselineAge(): number | null {
+  const baseline = loadBaseline();
+  if (!baseline) return null;
+  const savedAt = new Date(baseline.savedAt);
+  const now = new Date();
+  return (now.getTime() - savedAt.getTime()) / (1000 * 60 * 60);
 }
 
 // VKB server runs on port 8080
@@ -150,8 +215,9 @@ export const loadGraphData = createAsyncThunk<
       console.log(`🔍 [Intent] Starting entity transformation...`);
       console.log(`🔍 [Intent] First entity structure:`, graphData.entities[0]);
 
-      // Get existing entities from state for diff calculation
-      const existingEntities = state.graph.entities;
+      // Load baseline from localStorage for diff calculation
+      const baseline = loadBaseline();
+      console.log(`🔍 [Intent] Baseline loaded:`, baseline ? `${Object.keys(baseline.entities).length} entities, saved at ${baseline.savedAt}` : 'none (first load)');
 
       const entities: Entity[] = graphData.entities.map((e, index) => {
         if (index === 0) {
@@ -165,8 +231,8 @@ export const loadGraphData = createAsyncThunk<
           });
         }
 
-        // Calculate diff stats by comparing with existing entities in state
-        const diffStats = calculateDiffStats(e, existingEntities);
+        // Calculate diff stats by comparing with localStorage baseline
+        const diffStats = calculateDiffStats(e, baseline);
 
         return {
           id: e.id,
