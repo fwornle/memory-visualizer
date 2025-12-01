@@ -182,7 +182,7 @@ interface Entity {
   entityType: string;
   observations: string[];
   type: string;
-  _source?: string; // Added to track data source (e.g., "database" for online, "shared-memory-*" for batch)
+  _source?: string; // Added to track data source (e.g., "database" for online, "batch" for exported files)
   metadata?: {
     source?: 'batch' | 'online';
     [key: string]: any;
@@ -219,7 +219,7 @@ interface Node extends d3.SimulationNodeDatum {
   name: string;
   entityType: string;
   observations: string[];
-  _source?: string; // Added to track data source (e.g., "database" for online, "shared-memory-*" for batch)
+  _source?: string; // Added to track data source (e.g., "database" for online, "batch" for exported files)
   metadata?: {
     source?: 'batch' | 'online';
     [key: string]: any;
@@ -364,7 +364,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       // Batch mode: Keep only entities with metadata.source === 'batch' (manual/ukb learned)
       console.log('[VKB DEBUG] Batch mode filtering...');
       filteredEntities = entities.filter(e => {
-        const isBatch = e.metadata?.source === 'batch' || (!e.metadata?.source && e._source?.startsWith('shared-memory-'));
+        const isBatch = e.metadata?.source === 'batch' || (!e.metadata?.source && e._source === 'batch');
         if (isBatch && e.name.includes('Online')) {
           console.log(`[VKB DEBUG] Including in batch: ${e.name} (source=${e.metadata?.source})`);
         }
@@ -551,7 +551,7 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
       // Online: auto-learned knowledge (metadata.source === 'online')
       const batchCount = entities.filter(e =>
         e.metadata?.source === 'batch' ||
-        (!e.metadata?.source && e._source?.startsWith('shared-memory-'))
+        (!e.metadata?.source && e._source === 'batch')
       ).length;
       const onlineCount = entities.filter(e =>
         e.metadata?.source === 'online'

@@ -73,21 +73,21 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({ onTeamsChange }) => 
           displayName: 'Coding',
           description: 'Core coding knowledge management',
           entities: 0,
-          file: 'shared-memory-coding.json'
+          file: 'coding.json'
         },
         {
           name: 'ui',
           displayName: 'UI',
           description: 'User interface patterns and frontend',
           entities: 0,
-          file: 'shared-memory-ui.json'
+          file: 'ui.json'
         },
         {
           name: 'resi',
           displayName: 'ReSi',
           description: 'Reprocessing and Simulation Framework',
           entities: 0,
-          file: 'shared-memory-resi.json'
+          file: 'resi.json'
         }
       ]);
     }

@@ -367,10 +367,11 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             kb_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         kb_files = []
+        knowledge_export_path = os.path.join(kb_path, '.data', 'knowledge-export')
         try:
-            for filename in os.listdir(kb_path):
-                if filename.startswith('shared-memory-') and filename.endswith('.json'):
-                    filepath = os.path.join(kb_path, filename)
+            for filename in os.listdir(knowledge_export_path):
+                if filename.endswith('.json'):
+                    filepath = os.path.join(knowledge_export_path, filename)
                     if os.path.exists(filepath):
                         kb_files.append({
                             'name': filename,
