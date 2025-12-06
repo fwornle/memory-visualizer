@@ -50,6 +50,9 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_database_query('relations', parsed.query)
         elif parsed.path == '/api/stats':
             self.handle_database_query('stats', parsed.query)
+        # Serve knowledge-management files from coding root
+        elif parsed.path.startswith('/knowledge-management/'):
+            self.handle_knowledge_management_file(parsed.path)
         else:
             # Serve static files
             super().do_GET()
@@ -334,6 +337,58 @@ class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'error': 'Internal server error',
                 'message': str(e)
             }, status_code=500)
+
+    def handle_knowledge_management_file(self, path):
+        """Serve files from the knowledge-management directory in coding root."""
+        # Navigate from memory-visualizer to coding root
+        coding_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        # Remove leading slash and construct full path
+        relative_path = path.lstrip('/')
+        full_path = os.path.join(coding_path, relative_path)
+
+        # Security: Ensure the path stays within coding directory
+        full_path = os.path.realpath(full_path)
+        if not full_path.startswith(os.path.realpath(coding_path)):
+            self.send_error(403, "Forbidden: Path traversal detected")
+            return
+
+        # Check if file exists
+        if not os.path.isfile(full_path):
+            self.send_error(404, f"File not found: {path}")
+            return
+
+        # Determine content type
+        content_type = 'text/plain'
+        if full_path.endswith('.md'):
+            content_type = 'text/markdown; charset=utf-8'
+        elif full_path.endswith('.png'):
+            content_type = 'image/png'
+        elif full_path.endswith('.jpg') or full_path.endswith('.jpeg'):
+            content_type = 'image/jpeg'
+        elif full_path.endswith('.svg'):
+            content_type = 'image/svg+xml'
+        elif full_path.endswith('.json'):
+            content_type = 'application/json'
+        elif full_path.endswith('.puml'):
+            content_type = 'text/plain; charset=utf-8'
+
+        try:
+            # Read and serve the file
+            mode = 'rb' if content_type.startswith('image/') else 'r'
+            with open(full_path, mode) as f:
+                content = f.read()
+
+            if isinstance(content, str):
+                content = content.encode('utf-8')
+
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception as e:
+            self.send_error(500, f"Error reading file: {str(e)}")
 
     def handle_health_check(self):
         """Handle health check endpoint for monitoring."""

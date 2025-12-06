@@ -106,9 +106,17 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
         const isLocalMarkdown = part.includes('localhost:8080') && part.endsWith('.md');
 
         if (isMarkdownFile || isLocalMarkdown) {
-          const relativePath = isLocalMarkdown
+          let relativePath = isLocalMarkdown
             ? part.replace('http://localhost:8080/', '')
             : part;
+
+          // Handle absolute paths from legacy observations
+          // Convert /Users/.../coding/knowledge-management/... to knowledge-management/...
+          const knowledgeManagementMatch = relativePath.match(/\/knowledge-management\/.+\.md$/);
+          if (knowledgeManagementMatch) {
+            relativePath = knowledgeManagementMatch[0].slice(1); // Remove leading slash
+          }
+
           // Extract just the filename for display
           const displayName = relativePath.split('/').pop()?.replace('.md', '') || relativePath;
           return (
