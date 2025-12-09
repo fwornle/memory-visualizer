@@ -234,6 +234,27 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           </div>
         )}
 
+        {/* Ontology Classification Info */}
+        {selectedNode.metadata?.ontology && (
+          <div className="bg-purple-50 rounded p-3 space-y-1 text-sm">
+            <h5 className="font-semibold text-purple-800 mb-2">Ontology Classification</h5>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Ontology:</span>
+              <span className="font-medium text-purple-700">{selectedNode.metadata.ontology.ontologyName || 'upper'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Method:</span>
+              <span className="font-medium">{selectedNode.metadata.ontology.classificationMethod || 'unknown'}</span>
+            </div>
+            {selectedNode.metadata.ontology.confidence !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Classification Confidence:</span>
+                <span className="font-medium">{(selectedNode.metadata.ontology.confidence * 100).toFixed(0)}%</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Observations */}
         {selectedNode.observations && selectedNode.observations.length > 0 && (
           <div>

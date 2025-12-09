@@ -15,6 +15,21 @@ export interface DiffStats {
   previousObservationCount?: number; // For comparison
 }
 
+export interface OntologyMetadata {
+  ontologyName?: string;
+  classificationMethod?: string;
+  confidence?: number;
+}
+
+export interface ContentValidation {
+  overallValid?: boolean;
+  overallScore?: number;
+  totalIssues?: number;
+  criticalIssues?: number;
+  validatedAt?: string;
+  mode?: string;
+}
+
 export interface Entity {
   id?: string;
   name: string;
@@ -30,6 +45,13 @@ export interface Entity {
     createdAt?: string;
     teams?: string[];
     diffStats?: DiffStats;
+    // Ontology classification
+    ontology?: OntologyMetadata;
+    classificationConfidence?: number;
+    classificationMethod?: string;
+    // Content validation
+    contentValidation?: ContentValidation;
+    stalenessScore?: number;
   };
 }
 

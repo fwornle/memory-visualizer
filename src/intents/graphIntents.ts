@@ -249,6 +249,13 @@ export const loadGraphData = createAsyncThunk<
             createdAt: e.createdAt || e.lastModified, // Use lastModified as fallback for createdAt
             teams: e.metadata?.teams,
             diffStats: diffStats,
+            // Ontology classification metadata (check both top-level and nested in originalMetadata)
+            ontology: e.metadata?.ontology || e.metadata?.originalMetadata?.ontology,
+            classificationConfidence: e.metadata?.classificationConfidence || e.metadata?.originalMetadata?.classificationConfidence,
+            classificationMethod: e.metadata?.classificationMethod || e.metadata?.originalMetadata?.classificationMethod,
+            // Content validation metadata
+            contentValidation: e.metadata?.contentValidation || e.metadata?.originalMetadata?.contentValidation,
+            stalenessScore: e.metadata?.staleness_score || e.metadata?.originalMetadata?.staleness_score,
           },
         };
       });
