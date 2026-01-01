@@ -9,8 +9,15 @@ import socketserver
 import sys
 import os
 import json
+import signal
 import subprocess
 from urllib.parse import unquote, parse_qs, urlparse
+
+# Ignore SIGHUP to prevent termination when parent terminal closes
+# This allows the server to run as a proper daemon
+# Windows doesn't have SIGHUP, so we check for its existence
+if hasattr(signal, 'SIGHUP'):
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
 
 class APIHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
