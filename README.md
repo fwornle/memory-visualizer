@@ -255,7 +255,7 @@ The Memory Visualizer is tightly integrated with the coding project's knowledge 
 - Real-time entity and relation creation
 - Source: `auto`
 
-**4. Semantic Analysis (10-Agent System)**
+**4. Semantic Analysis (14-Agent System)**
 - Deep repository analysis workflows
 - Pattern extraction and insight generation
 - Source: `batch`
