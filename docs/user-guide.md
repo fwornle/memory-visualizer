@@ -244,6 +244,38 @@ Many entities have detailed insight documents that provide comprehensive documen
 - **Internal Links**: Jump to sections within the document
 - **Related Patterns**: Links to connected knowledge entities
 
+### Workflow Tracing
+
+![Workflow Trace Modal](images/viewer-details-tracing.png)
+
+*Workflow trace modal showing timeline view of agent execution with timing and output data*
+
+The Workflow Trace feature provides detailed visibility into multi-agent workflow execution:
+
+1. **Access**: Click the "View Trace" button in the UKB Workflow Monitor header
+2. **Stats Bar**: Shows total duration, completed steps count, and LLM call metrics
+3. **Timeline View**: Waterfall-style visualization of agent execution sequence
+4. **Expandable Output**: Click the expand arrow (›) to view detailed JSON output from each step
+
+**Timeline Features**:
+- **Sequential Order**: Steps displayed in execution order with index numbers
+- **Duration Bars**: Green bars show relative execution time for each agent
+- **Status Icons**: Checkmarks for completed steps, X for failures, spinner for running
+- **LLM Badges**: Shows which steps used LLM providers (Claude, etc.)
+- **Click to Select**: Click any row to view detailed information in the right panel
+
+**Trace Details Panel** (right side when step selected):
+- **Timing Information**: Duration and start offset from workflow beginning
+- **LLM Metrics**: Provider name and token usage when applicable
+- **Output Data**: Full JSON output from the agent step
+- **Error Messages**: Detailed error information for failed steps
+
+**Use Cases**:
+- Debug slow-running workflows by identifying bottleneck agents
+- Inspect agent outputs to understand data flow between steps
+- Monitor LLM token usage across workflow execution
+- Trace failures to their root cause in the agent chain
+
 ---
 
 ## Advanced Features
