@@ -860,29 +860,36 @@ const KnowledgeGraphVisualization: React.FC<KnowledgeGraphVisualizationProps> = 
     const connectedEntityNames = new Set(entityNames);
     
     if (searchTerm) {
-      // During search: Add CollectiveKnowledge if we have any matching patterns to maintain hub structure
-      if (filteredEntities.length > 0) {
-        const collectiveKnowledge = graphData.entities.find(e => e.name === "CollectiveKnowledge");
-        if (collectiveKnowledge && !connectedEntityNames.has("CollectiveKnowledge")) {
-          connectedEntityNames.add("CollectiveKnowledge");
-        }
-      }
-      
-      // Add project entities that are directly connected to our filtered results to prevent isolation
+      // HIERARCHICAL STRUCTURE: CollectiveKnowledge -> Projects -> Topics
+      // During search: Build hierarchy by adding Projects connected to filtered results,
+      // then add CollectiveKnowledge if any Projects are included
+
+      // First, add project entities that are directly connected to our filtered results
+      let hasProjectNodes = false;
       graphData.relations.forEach((relation) => {
         if (entityNames.has(relation.from)) {
           const toEntity = graphData.entities.find(e => e.name === relation.to);
           if (toEntity?.entityType === "Project") {
             connectedEntityNames.add(relation.to);
+            hasProjectNodes = true;
           }
         }
         if (entityNames.has(relation.to)) {
           const fromEntity = graphData.entities.find(e => e.name === relation.from);
           if (fromEntity?.entityType === "Project") {
             connectedEntityNames.add(relation.from);
+            hasProjectNodes = true;
           }
         }
       });
+
+      // If any Projects are included, add CollectiveKnowledge to complete the hierarchy
+      if (hasProjectNodes && filteredEntities.length > 0) {
+        const collectiveKnowledge = graphData.entities.find(e => e.name === "CollectiveKnowledge");
+        if (collectiveKnowledge && !connectedEntityNames.has("CollectiveKnowledge")) {
+          connectedEntityNames.add("CollectiveKnowledge");
+        }
+      }
     } else {
       // When NOT searching, add all direct connections to maintain full graph structure
       graphData.relations.forEach((relation) => {
