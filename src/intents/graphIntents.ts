@@ -436,8 +436,18 @@ export const restoreEntity = createAsyncThunk<
 
       await dbClient.createEntity(entityData);
 
-      // Recreate all relations
-      for (const relation of relations) {
+      // Recreate relations, but filter out old star-topology relations to CollectiveKnowledge
+      // Topics should NOT have direct relations TO CollectiveKnowledge (hierarchical structure)
+      const filteredRelations = relations.filter(relation => {
+        // Skip relations TO CollectiveKnowledge (these create unwanted star topology)
+        if (relation.to === 'CollectiveKnowledge') {
+          console.log(`⏭️ [Intent] Skipping old star-topology relation: ${relation.from} → CollectiveKnowledge`);
+          return false;
+        }
+        return true;
+      });
+
+      for (const relation of filteredRelations) {
         try {
           await dbClient.createRelation({
             from: relation.from,

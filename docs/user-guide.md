@@ -6,7 +6,7 @@ The Memory Visualizer helps you explore and debug knowledge graphs created by Cl
 
 ### Access
 
-**Online Version**: [https://memviz.herich.tech](https://memviz.herich.tech)
+**Forked and heavily modified from**: [https://memviz.herich.tech](https://memviz.herich.tech)
 
 **Local Installation**:
 ```bash
@@ -61,10 +61,6 @@ For real-time data from the coding project's GraphDB:
 ---
 
 ## Navigating the Graph
-
-![Entity Details View](images/insights.png)
-
-*Detailed entity information panel showing observations and relationships*
 
 ### Basic Navigation
 
@@ -178,14 +174,28 @@ Nodes are color-coded by entity type:
 
 ## Entity Details Panel
 
+![Node Details Panel](images/viewer-details.png)
+
+*Node Details panel showing entity information, observations, and relationships*
+
 ### Viewing Details
 
 Click any node to view:
 
 1. **Entity Name**: Displayed at top
-2. **Entity Type**: Category classification
-3. **Observations**: List of facts/notes
-4. **Relations**: Connected entities
+2. **Entity Type**: Category classification (shown as badge)
+3. **Source**: Origin of the entity (batch/manual or online/auto)
+4. **Team**: Which team/project the entity belongs to
+5. **Confidence**: Classification confidence score
+6. **Observations**: List of facts/notes about the entity
+7. **Outgoing Relations**: Connected entities with relationship types
+
+### Navigation Controls
+
+The details panel includes navigation buttons:
+
+- **← Back / Forward →**: Navigate through previously viewed entities
+- **Delete**: Remove the entity from the knowledge graph (with undo support)
 
 ### Observations
 
@@ -209,6 +219,30 @@ Shows all connections:
 - Listed with arrow ←
 - Shows source entity
 - Click to view source
+
+### Insight Documents
+
+![Insight Document Viewer](images/viewer-details-insight.png)
+
+*Full insight document modal with rendered markdown and architecture diagrams*
+
+Many entities have detailed insight documents that provide comprehensive documentation:
+
+1. **Access**: Click the "Details:" link in the Observations section
+2. **Content**: Full markdown document with:
+   - Table of contents with clickable navigation
+   - Problem/Solution overview
+   - Architecture diagrams (rendered from PlantUML)
+   - Key patterns and benefits
+   - Code examples and references
+3. **Navigation**: Use ↑↓ arrows to browse between insight documents
+4. **Close**: Click the × button or press Escape
+
+**Insight Document Features**:
+- **Rendered Diagrams**: PlantUML architecture diagrams displayed inline
+- **Syntax Highlighting**: Code blocks with language-specific highlighting
+- **Internal Links**: Jump to sections within the document
+- **Related Patterns**: Links to connected knowledge entities
 
 ---
 
