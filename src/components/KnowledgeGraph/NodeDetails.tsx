@@ -117,6 +117,14 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
             relativePath = knowledgeManagementMatch[0].slice(1); // Remove leading slash
           }
 
+          // Session log files are in .specstory/history/ and have pattern: YYYY-MM-DD_HHMM-HHMM_<hash>.md
+          // Examples: 2026-01-25_1100-1200_c197ef.md, 2025-11-29_1400-1500_g9b30a_from-ui-template.md
+          const sessionLogPattern = /^\d{4}-\d{2}-\d{2}_\d{4}-\d{4}_[a-z0-9]+(?:_[a-z0-9-]+)?\.md$/i;
+          const filename = relativePath.split('/').pop() || relativePath;
+          if (sessionLogPattern.test(filename) && !relativePath.includes('/')) {
+            relativePath = `specstory/${filename}`;
+          }
+
           // Extract just the filename for display
           const displayName = relativePath.split('/').pop()?.replace('.md', '') || relativePath;
           return (
