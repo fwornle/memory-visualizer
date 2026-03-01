@@ -23,6 +23,11 @@ export interface Node {
   // Additional D3 internal properties that may be set
   index?: number;
   metadata?: any;
+  // Hierarchy fields (Phase 4: schema foundation)
+  parentId?: string;
+  level?: number;
+  hierarchyPath?: string;
+  isScaffoldNode?: boolean;
 }
 
 export interface MarkdownHistoryItem {

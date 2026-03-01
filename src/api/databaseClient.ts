@@ -17,6 +17,12 @@ export interface Entity {
   extracted_at: string;
   last_modified: string;
   metadata?: any;
+  // Hierarchy fields (Phase 4: schema foundation)
+  parent_id?: string;           // Entity name of parent node
+  level?: number;               // 0=Project, 1=Component, 2=SubComponent, 3=Detail
+  hierarchy_path?: string;      // Slash-separated path: "Coding/KnowledgeManagement/OnlineLearning"
+  is_scaffold_node?: boolean;   // true for L0-L2 structural nodes
+  child_entity_names?: string[]; // Names of direct children
 }
 
 export interface Relation {
