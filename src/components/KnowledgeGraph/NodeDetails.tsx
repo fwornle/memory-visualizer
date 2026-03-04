@@ -223,6 +223,49 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           </span>
         </div>
 
+        {/* Hierarchy */}
+        {selectedNode.metadata?.parentEntityName && (
+          <div className="bg-indigo-50 rounded p-3 space-y-1 text-sm mb-2">
+            {selectedNode.metadata.hierarchyLevel !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Level:</span>
+                <span className="font-medium">L{selectedNode.metadata.hierarchyLevel}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-600">Parent:</span>
+              <button
+                onClick={() => {
+                  const parentNode = entities.find((e: any) => e.name === selectedNode.metadata.parentEntityName);
+                  if (parentNode) dispatch(selectNode({ id: parentNode.name, name: parentNode.name, entityType: parentNode.entityType, observations: parentNode.observations, metadata: parentNode.metadata }));
+                }}
+                className="font-medium text-indigo-600 hover:text-indigo-800 underline"
+              >
+                {selectedNode.metadata.parentEntityName}
+              </button>
+            </div>
+            {selectedNode.metadata.childEntityNames?.length > 0 && (
+              <div>
+                <span className="text-gray-600">Children:</span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {selectedNode.metadata.childEntityNames.map((child: string) => (
+                    <button
+                      key={child}
+                      onClick={() => {
+                        const childNode = entities.find((e: any) => e.name === child);
+                        if (childNode) dispatch(selectNode({ id: childNode.name, name: childNode.name, entityType: childNode.entityType, observations: childNode.observations, metadata: childNode.metadata }));
+                      }}
+                      className="px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200"
+                    >
+                      {child}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Metadata */}
         {selectedNode.metadata && (
           <div className="bg-gray-50 rounded p-3 space-y-1 text-sm">

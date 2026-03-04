@@ -256,6 +256,11 @@ export const loadGraphData = createAsyncThunk<
             // Content validation metadata
             contentValidation: e.metadata?.contentValidation || e.metadata?.originalMetadata?.contentValidation,
             stalenessScore: e.metadata?.staleness_score || e.metadata?.originalMetadata?.staleness_score,
+            // Hierarchy fields
+            parentEntityName: e.parentEntityName,
+            hierarchyLevel: e.hierarchyLevel,
+            isScaffoldNode: e.isScaffoldNode,
+            childEntityNames: e.childEntityNames,
           },
         };
       });
