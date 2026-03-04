@@ -98,11 +98,11 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
                 <span>Component</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#90caf9'}}></div>
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#64b5f6'}}></div>
                 <span>SubComponent</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#e3f2fd'}}></div>
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#90caf9'}}></div>
                 <span>Detail</span>
               </div>
               <div className="flex items-center gap-1.5">

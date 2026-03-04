@@ -474,15 +474,15 @@ export const GraphVisualization: React.FC = () => {
         if (hl != null) {
           if (hl === 0) return '#0d47a1'; // L0 Project: navy
           if (hl === 1) return '#1976d2'; // L1 Component: strong blue
-          if (hl === 2) return '#90caf9'; // L2 SubComponent: light blue
-          return '#e3f2fd';               // L3+ leaf: very light blue
+          if (hl === 2) return '#64b5f6'; // L2 SubComponent: medium blue
+          return '#90caf9';               // L3+ leaf: light blue (visible on grey bg)
         }
 
         // Fallback: use entityType when hierarchyLevel missing
         if (d.entityType === 'Project') return '#0d47a1';
         if (d.entityType === 'Component') return '#1976d2';
-        if (d.entityType === 'SubComponent') return '#90caf9';
-        return '#e3f2fd'; // Detail, Pattern, etc.
+        if (d.entityType === 'SubComponent') return '#64b5f6';
+        return '#90caf9'; // Detail, Pattern, etc.
       })
       .attr('stroke', (d) => d.metadata?.has_insight_document ? '#0d47a1' : '#fff')
       .attr('stroke-width', (d) => d.metadata?.has_insight_document ? 3 : 2);
