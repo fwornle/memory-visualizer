@@ -261,6 +261,9 @@ export const loadGraphData = createAsyncThunk<
             hierarchyLevel: e.hierarchyLevel,
             isScaffoldNode: e.isScaffoldNode,
             childEntityNames: e.childEntityNames,
+            // Insight document fields
+            has_insight_document: e.metadata?.has_insight_document || e.metadata?.originalMetadata?.has_insight_document,
+            validated_file_path: e.metadata?.validated_file_path || e.metadata?.originalMetadata?.validated_file_path,
           },
         };
       });

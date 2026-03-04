@@ -52,6 +52,14 @@ export interface Entity {
     // Content validation
     contentValidation?: ContentValidation;
     stalenessScore?: number;
+    // Hierarchy fields
+    parentEntityName?: string;
+    hierarchyLevel?: number;
+    isScaffoldNode?: boolean;
+    childEntityNames?: string[];
+    // Insight document fields
+    has_insight_document?: boolean;
+    validated_file_path?: string;
   };
 }
 

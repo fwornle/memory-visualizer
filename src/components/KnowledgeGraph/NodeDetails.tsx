@@ -21,7 +21,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
   const { selectedNode, nodeHistory, nodeHistoryIndex } = useAppSelector(
     state => state.navigation
   );
-  const { relations } = useAppSelector(state => state.graph);
+  const { entities, relations } = useAppSelector(state => state.graph);
 
   // State for delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -35,18 +35,34 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
     );
   }
 
-  // Find relations involving this node, deduplicated by (from, to, type)
-  const dedup = (rels: typeof relations) => {
-    const seen = new Set<string>();
-    return rels.filter(r => {
-      const key = `${r.from}__${r.relationType || r.type || ''}__${r.to}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  // Relationship strength ranking — each child appears ONCE via its strongest relationship
+  const RELATION_STRENGTH: Record<string, number> = {
+    'contains': 10,
+    'parent-child': 9,
+    'extends': 8,
+    'implements': 7,
+    'includes': 6,
+    'uses': 5,
+    'depends_on': 4,
+    'related_to': 3,
   };
-  const outgoing = dedup(relations.filter(r => r.from === selectedNode.name));
-  const incoming = dedup(relations.filter(r => r.to === selectedNode.name));
+  const getStrength = (type: string) => RELATION_STRENGTH[type] || 1;
+
+  // Deduplicate by node pair, keeping only the strongest relationship
+  const dedupByTarget = (rels: typeof relations) => {
+    const bestByPair = new Map<string, typeof relations[0]>();
+    for (const r of rels) {
+      const pairKey = `${r.from}__${r.to}`;
+      const existing = bestByPair.get(pairKey);
+      const relType = r.relationType || r.type || '';
+      if (!existing || getStrength(relType) > getStrength(existing.relationType || existing.type || '')) {
+        bestByPair.set(pairKey, r);
+      }
+    }
+    return Array.from(bestByPair.values());
+  };
+  const outgoing = dedupByTarget(relations.filter(r => r.from === selectedNode.name));
+  const incoming = dedupByTarget(relations.filter(r => r.to === selectedNode.name));
 
   const handleClose = () => {
     dispatch(selectNode(null));
@@ -312,6 +328,24 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
                 <span className="font-medium">{(selectedNode.metadata.ontology.confidence * 100).toFixed(0)}%</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Insight Document Link */}
+        {selectedNode.metadata?.has_insight_document && selectedNode.metadata?.validated_file_path && (
+          <div className="bg-green-50 rounded p-3">
+            <button
+              onClick={() => {
+                let path = selectedNode.metadata!.validated_file_path!;
+                // Convert absolute path to relative for the markdown viewer
+                const knowledgeMatch = path.match(/knowledge-management\/.+\.md$/);
+                if (knowledgeMatch) path = knowledgeMatch[0];
+                onOpenMarkdown(path);
+              }}
+              className="text-sm text-green-700 hover:text-green-900 font-medium underline flex items-center gap-1.5"
+            >
+              <span className="text-base">📄</span> View Insight Document
+            </button>
           </div>
         )}
 

@@ -465,23 +465,27 @@ export const GraphVisualization: React.FC = () => {
         // System nodes: green
         if (d.entityType === 'System') return '#3cb371';
 
-        // Hierarchy-based blue gradient: darker at stem, lighter at leaves
-        const hl = d.metadata?.hierarchyLevel;
-        if (hl != null) {
-          if (hl === 0) return '#1565c0'; // L0 Project: darkest blue
-          if (hl === 1) return '#1e88e5'; // L1 Component: medium-dark blue
-          if (hl === 2) return '#64b5f6'; // L2 SubComponent: medium-light blue
-          return '#bbdefb';               // L3+ leaf: lightest blue
-        }
-
-        // Fallback for entities without hierarchy
-        if (d.entityType === 'Project') return '#1565c0';
+        // Online/auto-learned nodes: pink
         const source = d.metadata?.source;
         if (source === 'online') return '#FFB6C1';
-        return '#64b5f6';
+
+        // Hierarchy-based blue gradient with high contrast
+        const hl = d.metadata?.hierarchyLevel;
+        if (hl != null) {
+          if (hl === 0) return '#0d47a1'; // L0 Project: navy
+          if (hl === 1) return '#1976d2'; // L1 Component: strong blue
+          if (hl === 2) return '#90caf9'; // L2 SubComponent: light blue
+          return '#e3f2fd';               // L3+ leaf: very light blue
+        }
+
+        // Fallback: use entityType when hierarchyLevel missing
+        if (d.entityType === 'Project') return '#0d47a1';
+        if (d.entityType === 'Component') return '#1976d2';
+        if (d.entityType === 'SubComponent') return '#90caf9';
+        return '#e3f2fd'; // Detail, Pattern, etc.
       })
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 2);
+      .attr('stroke', (d) => d.metadata?.has_insight_document ? '#0d47a1' : '#fff')
+      .attr('stroke-width', (d) => d.metadata?.has_insight_document ? 3 : 2);
 
     // Node labels
     node

@@ -90,20 +90,29 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
             <div className="flex items-center gap-4 text-xs text-gray-600">
               <span className="font-semibold">Node Colors:</span>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#1565c0'}}></div>
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#0d47a1'}}></div>
                 <span>Project</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#1e88e5'}}></div>
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#1976d2'}}></div>
                 <span>Component</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#64b5f6'}}></div>
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#90caf9'}}></div>
+                <span>SubComponent</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#e3f2fd'}}></div>
                 <span>Detail</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#FFB6C1'}}></div>
                 <span>Online/Auto</span>
+              </div>
+              <span className="text-gray-300">|</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full border-2" style={{backgroundColor: '#64b5f6', borderColor: '#0d47a1'}}></div>
+                <span>Has Insight Doc</span>
               </div>
             </div>
             {/* Statistics */}
