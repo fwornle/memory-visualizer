@@ -35,9 +35,18 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
     );
   }
 
-  // Find relations involving this node
-  const outgoing = relations.filter(r => r.from === selectedNode.name);
-  const incoming = relations.filter(r => r.to === selectedNode.name);
+  // Find relations involving this node, deduplicated by (from, to, type)
+  const dedup = (rels: typeof relations) => {
+    const seen = new Set<string>();
+    return rels.filter(r => {
+      const key = `${r.from}__${r.relationType || r.type || ''}__${r.to}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const outgoing = dedup(relations.filter(r => r.from === selectedNode.name));
+  const incoming = dedup(relations.filter(r => r.to === selectedNode.name));
 
   const handleClose = () => {
     dispatch(selectNode(null));

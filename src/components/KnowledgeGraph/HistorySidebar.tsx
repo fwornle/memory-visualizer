@@ -53,7 +53,10 @@ export const HistorySidebar: React.FC = () => {
     console.log('[HistorySidebar] selectedTeams:', selectedTeams);
     console.log('[HistorySidebar] dataSource:', dataSource);
 
-    let filtered = entities;
+    // Exclude system/structural nodes - they are always present, not insights
+    let filtered = entities.filter(entity =>
+      entity.entityType !== 'System' && entity.entityType !== 'Project'
+    );
 
     // Apply team filter
     if (selectedTeams.length > 0) {
