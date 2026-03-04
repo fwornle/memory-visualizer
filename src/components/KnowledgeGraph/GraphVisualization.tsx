@@ -462,17 +462,23 @@ export const GraphVisualization: React.FC = () => {
       .attr('class', 'node-circle')
       .attr('r', 10)
       .attr('fill', (d) => {
-        // System and Project entities have fixed colors
-        if (d.entityType === 'System') return '#3cb371'; // Medium sea green
-        if (d.entityType === 'Project') return '#4682b4'; // Steel blue
+        // System nodes: green
+        if (d.entityType === 'System') return '#3cb371';
 
-        // Pattern/knowledge nodes: batch=light blue, online=light red
+        // Hierarchy-based blue gradient: darker at stem, lighter at leaves
+        const hl = d.metadata?.hierarchyLevel;
+        if (hl != null) {
+          if (hl === 0) return '#1565c0'; // L0 Project: darkest blue
+          if (hl === 1) return '#1e88e5'; // L1 Component: medium-dark blue
+          if (hl === 2) return '#64b5f6'; // L2 SubComponent: medium-light blue
+          return '#bbdefb';               // L3+ leaf: lightest blue
+        }
+
+        // Fallback for entities without hierarchy
+        if (d.entityType === 'Project') return '#1565c0';
         const source = d.metadata?.source;
-        if (source === 'online') return '#FFB6C1'; // Light red
-        if (source === 'batch') return '#ADD8E6'; // Light blue
-
-        // Default
-        return '#69b3a2';
+        if (source === 'online') return '#FFB6C1';
+        return '#64b5f6';
       })
       .attr('stroke', '#fff')
       .attr('stroke-width', 2);
