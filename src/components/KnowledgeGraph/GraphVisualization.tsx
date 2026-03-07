@@ -99,7 +99,7 @@ export const GraphVisualization: React.FC = () => {
     });
   }, [entities, relations, selectedTeams, searchTerm, entityType, relationType, dimensions]);
 
-  // Update selection rings and ancestry path when selectedNode changes
+  // Update selection rings, ancestry path, and opacity when selectedNode changes
   useEffect(() => {
     if (!svgRef.current) return;
 
@@ -109,50 +109,56 @@ export const GraphVisualization: React.FC = () => {
     svg.selectAll('.selection-ring')
       .attr('opacity', 0);
 
-    // Reset all links to default style
-    svg.selectAll('.graph-link')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#end)');
-
-    // Show ring for currently selected node (if any)
-    if (currentSelectedNode) {
+    if (!currentSelectedNode) {
+      // No selection: reset everything to default
+      svg.selectAll('.graph-link')
+        .attr('stroke', '#999')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-width', 1);
       svg.selectAll('.node')
-        .filter((d: any) => d.id === currentSelectedNode.id)
-        .select('.selection-ring')
         .attr('opacity', 1);
-
-      // Compute ancestry path and bold those edges
-      const pathEdges = computeAncestryPath(currentSelectedNode.name, relations);
-      if (pathEdges.size > 0) {
-        svg.selectAll('.graph-link')
-          .attr('stroke', (d: any) => {
-            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
-            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
-            const key = `${sourceId}||${targetId}`;
-            return pathEdges.has(key) ? '#0d47a1' : '#999';
-          })
-          .attr('stroke-opacity', (d: any) => {
-            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
-            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
-            const key = `${sourceId}||${targetId}`;
-            return pathEdges.has(key) ? 1 : 0.6;
-          })
-          .attr('stroke-width', (d: any) => {
-            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
-            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
-            const key = `${sourceId}||${targetId}`;
-            return pathEdges.has(key) ? 3.5 : 1;
-          })
-          .attr('marker-end', (d: any) => {
-            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
-            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
-            const key = `${sourceId}||${targetId}`;
-            return pathEdges.has(key) ? 'url(#end-bold)' : 'url(#end)';
-          });
-      }
+      svg.selectAll('.node-label')
+        .attr('opacity', 1);
+      return;
     }
+
+    // Show ring for currently selected node
+    svg.selectAll('.node')
+      .filter((d: any) => d.id === currentSelectedNode.id)
+      .select('.selection-ring')
+      .attr('opacity', 1);
+
+    // Compute ancestry path
+    const ancestry = computeAncestryPath(currentSelectedNode.name, relations);
+    const { edges: pathEdges, nodeDepths, pathLength } = ancestry;
+
+    // Helper: compute opacity for a path node based on depth
+    // depth 0 (selected) = 1.0, increasing depth fades toward 0.5
+    const pathNodeOpacity = (name: string): number => {
+      const depth = nodeDepths.get(name);
+      if (depth === undefined) return 0.12; // not in path
+      if (pathLength === 0) return 1;
+      return 1.0 - (depth / pathLength) * 0.5; // 1.0 at selected → 0.5 at root
+    };
+
+    // Apply node opacity: path nodes bright (gradient), others faint
+    svg.selectAll('.node')
+      .attr('opacity', (d: any) => pathNodeOpacity(d.id));
+    svg.selectAll('.node-label')
+      .attr('opacity', (d: any) => nodeDepths.has(d.id) ? 1 : 0.12);
+
+    // Helper: check if a link is in the ancestry path
+    const isPathEdge = (d: any): boolean => {
+      const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+      const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+      return pathEdges.has(`${sourceId}||${targetId}`);
+    };
+
+    // Apply link styles
+    svg.selectAll('.graph-link')
+      .attr('stroke', (d: any) => isPathEdge(d) ? '#0d47a1' : '#999')
+      .attr('stroke-opacity', (d: any) => isPathEdge(d) ? 1 : 0.08)
+      .attr('stroke-width', (d: any) => isPathEdge(d) ? 3 : 1);
   }, [currentSelectedNode, relations]);
 
   // Calculate dimensions
@@ -305,36 +311,7 @@ export const GraphVisualization: React.FC = () => {
     zoomBehaviorRef.current = zoomBehavior;
     svg.call(zoomBehavior as any);
 
-    // Arrow markers
     const defs = svg.append('defs');
-    defs
-      .selectAll('marker')
-      .data(['end'])
-      .enter()
-      .append('marker')
-      .attr('id', (d) => d)
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 25)
-      .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('fill', '#999')
-      .attr('d', 'M0,-5L10,0L0,5');
-
-    // Bold arrow marker for ancestry path
-    defs.append('marker')
-      .attr('id', 'end-bold')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 22)
-      .attr('refY', 0)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('fill', '#0d47a1')
-      .attr('d', 'M0,-5L10,0L0,5');
 
     // Create completely isolated D3-owned node objects
     // D3 will mutate these directly, so they must be plain JS objects with no freeze
@@ -434,7 +411,6 @@ export const GraphVisualization: React.FC = () => {
       .attr('stroke', '#999')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#end)')
       .attr('fill', 'none');
 
     // Aggregate links between same node pairs to show combined labels
@@ -543,6 +519,7 @@ export const GraphVisualization: React.FC = () => {
     // Node labels
     node
       .append('text')
+      .attr('class', 'node-label')
       .text((d) => d.name)
       .attr('x', 15)
       .attr('y', 5)

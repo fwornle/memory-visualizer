@@ -296,12 +296,12 @@ export const loadGraphData = createAsyncThunk<
         }
 
         return {
-          id: r.source + '-' + r.target,
-          from: r.source,
-          to: r.target,
-          type: r.type,
-          relationType: r.type,
-          confidence: r.confidence,
+          id: (r.from_name || r.from || r.source) + '-' + (r.to_name || r.to || r.target),
+          from: r.from_name || r.from || r.source,
+          to: r.to_name || r.to || r.target,
+          type: r.relation_type || r.relationType || r.type,
+          relationType: r.relation_type || r.relationType || r.type,
+          confidence: r.confidence || r.metadata?.confidence,
           metadata: r.metadata,
         };
       });

@@ -208,38 +208,43 @@ export const transformToD3Format = (
   return { nodes, links };
 };
 
+export interface AncestryPathResult {
+  /** Edge keys in both directions ("A||B" and "B||A") for matching D3 links */
+  edges: Set<string>;
+  /** Node name → distance from selected node (0 = selected, 1 = parent, etc.) */
+  nodeDepths: Map<string, number>;
+  /** Total path length (number of hops from selected to root) */
+  pathLength: number;
+}
+
 /**
  * Compute the ancestry path from a selected node up to the root (CollectiveKnowledge).
  * Walks the 'contains' and 'includes' relationships backwards to find the
  * hierarchical trail: CollectiveKnowledge → Project → Component → SubComponent → Detail.
- * Returns a set of "from||to" edge keys that should be highlighted.
  */
 export const computeAncestryPath = (
   selectedNodeName: string,
   relations: Relation[],
-): Set<string> => {
-  const pathEdges = new Set<string>();
+): AncestryPathResult => {
+  const edges = new Set<string>();
+  const nodeDepths = new Map<string, number>();
   const HIERARCHY_TYPES = new Set(['contains', 'includes', 'parent-child']);
 
   // Build a reverse adjacency map: child → parent(s) via hierarchy relations
   const childToParents = new Map<string, string[]>();
-  const edgeKeyForPair = new Map<string, string>(); // "parent->child" → "from||to" key
   for (const r of relations) {
     const relType = r.relationType || r.type || '';
     if (!HIERARCHY_TYPES.has(relType)) continue;
-    // "from" is parent, "to" is child for contains/includes
     const parent = r.from;
     const child = r.to;
     if (!childToParents.has(child)) childToParents.set(child, []);
     childToParents.get(child)!.push(parent);
-    // Store edge key using the canonical direction (parent→child) so we can match D3 links
-    edgeKeyForPair.set(`${parent}->${child}`, `${parent}||${child}`);
   }
 
   // BFS from selected node upward to CollectiveKnowledge
   const visited = new Set<string>();
   const queue: string[] = [selectedNodeName];
-  const parentOf = new Map<string, string>(); // child → parent (for path reconstruction)
+  const parentOf = new Map<string, string>();
   visited.add(selectedNodeName);
 
   while (queue.length > 0) {
@@ -249,23 +254,28 @@ export const computeAncestryPath = (
     for (const p of parents) {
       if (!visited.has(p)) {
         visited.add(p);
-        parentOf.set(current, p);
+        if (!parentOf.has(current)) {
+          parentOf.set(current, p);
+        }
         queue.push(p);
       }
     }
   }
 
-  // Reconstruct path from selected node to CollectiveKnowledge
+  // Reconstruct path and record depths
   let node = selectedNodeName;
+  let depth = 0;
+  nodeDepths.set(node, depth);
   while (parentOf.has(node)) {
     const parent = parentOf.get(node)!;
-    // Add both possible edge key directions so we match regardless of link direction
-    pathEdges.add(`${parent}||${node}`);
-    pathEdges.add(`${node}||${parent}`);
+    edges.add(`${parent}||${node}`);
+    edges.add(`${node}||${parent}`);
+    depth++;
+    nodeDepths.set(parent, depth);
     node = parent;
   }
 
-  return pathEdges;
+  return { edges, nodeDepths, pathLength: depth };
 };
 
 /**
