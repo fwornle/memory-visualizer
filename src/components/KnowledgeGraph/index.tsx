@@ -98,7 +98,7 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
                 <span>Component</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#64b5f6'}}></div>
+                <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#26a69a'}}></div>
                 <span>SubComponent</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -111,7 +111,7 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
               </div>
               <span className="text-gray-300">|</span>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full border-2" style={{backgroundColor: '#64b5f6', borderColor: '#0d47a1'}}></div>
+                <div className="w-3 h-3 rounded-full border-2" style={{backgroundColor: '#26a69a', borderColor: '#0d47a1'}}></div>
                 <span>Has Insight Doc</span>
               </div>
             </div>

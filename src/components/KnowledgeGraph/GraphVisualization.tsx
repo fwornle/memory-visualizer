@@ -18,6 +18,7 @@ import {
   filterByTeams,
   getRelationsForEntities,
   transformToD3Format,
+  computeAncestryPath,
 } from '../../utils/graphHelpers';
 
 export const GraphVisualization: React.FC = () => {
@@ -98,7 +99,7 @@ export const GraphVisualization: React.FC = () => {
     });
   }, [entities, relations, selectedTeams, searchTerm, entityType, relationType, dimensions]);
 
-  // Update selection rings when selectedNode changes
+  // Update selection rings and ancestry path when selectedNode changes
   useEffect(() => {
     if (!svgRef.current) return;
 
@@ -108,14 +109,51 @@ export const GraphVisualization: React.FC = () => {
     svg.selectAll('.selection-ring')
       .attr('opacity', 0);
 
+    // Reset all links to default style
+    svg.selectAll('.graph-link')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', 1)
+      .attr('marker-end', 'url(#end)');
+
     // Show ring for currently selected node (if any)
     if (currentSelectedNode) {
       svg.selectAll('.node')
         .filter((d: any) => d.id === currentSelectedNode.id)
         .select('.selection-ring')
         .attr('opacity', 1);
+
+      // Compute ancestry path and bold those edges
+      const pathEdges = computeAncestryPath(currentSelectedNode.name, relations);
+      if (pathEdges.size > 0) {
+        svg.selectAll('.graph-link')
+          .attr('stroke', (d: any) => {
+            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+            const key = `${sourceId}||${targetId}`;
+            return pathEdges.has(key) ? '#0d47a1' : '#999';
+          })
+          .attr('stroke-opacity', (d: any) => {
+            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+            const key = `${sourceId}||${targetId}`;
+            return pathEdges.has(key) ? 1 : 0.6;
+          })
+          .attr('stroke-width', (d: any) => {
+            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+            const key = `${sourceId}||${targetId}`;
+            return pathEdges.has(key) ? 3.5 : 1;
+          })
+          .attr('marker-end', (d: any) => {
+            const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+            const targetId = typeof d.target === 'string' ? d.target : d.target.id;
+            const key = `${sourceId}||${targetId}`;
+            return pathEdges.has(key) ? 'url(#end-bold)' : 'url(#end)';
+          });
+      }
     }
-  }, [currentSelectedNode]);
+  }, [currentSelectedNode, relations]);
 
   // Calculate dimensions
   useLayoutEffect(() => {
@@ -268,8 +306,8 @@ export const GraphVisualization: React.FC = () => {
     svg.call(zoomBehavior as any);
 
     // Arrow markers
-    svg
-      .append('defs')
+    const defs = svg.append('defs');
+    defs
       .selectAll('marker')
       .data(['end'])
       .enter()
@@ -283,6 +321,19 @@ export const GraphVisualization: React.FC = () => {
       .attr('orient', 'auto')
       .append('path')
       .attr('fill', '#999')
+      .attr('d', 'M0,-5L10,0L0,5');
+
+    // Bold arrow marker for ancestry path
+    defs.append('marker')
+      .attr('id', 'end-bold')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 22)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('fill', '#0d47a1')
       .attr('d', 'M0,-5L10,0L0,5');
 
     // Create completely isolated D3-owned node objects
@@ -376,11 +427,13 @@ export const GraphVisualization: React.FC = () => {
     // Create links using D3-owned link objects
     const link = g
       .append('g')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.6)
       .selectAll('path')
       .data(d3Links)
       .join('path')
+      .attr('class', 'graph-link')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', 1)
       .attr('marker-end', 'url(#end)')
       .attr('fill', 'none');
 
@@ -474,14 +527,14 @@ export const GraphVisualization: React.FC = () => {
         if (hl != null) {
           if (hl === 0) return '#0d47a1'; // L0 Project: navy
           if (hl === 1) return '#1976d2'; // L1 Component: strong blue
-          if (hl === 2) return '#64b5f6'; // L2 SubComponent: medium blue
+          if (hl === 2) return '#26a69a'; // L2 SubComponent: medium blue
           return '#90caf9';               // L3+ leaf: light blue (visible on grey bg)
         }
 
         // Fallback: use entityType when hierarchyLevel missing
         if (d.entityType === 'Project') return '#0d47a1';
         if (d.entityType === 'Component') return '#1976d2';
-        if (d.entityType === 'SubComponent') return '#64b5f6';
+        if (d.entityType === 'SubComponent') return '#26a69a';
         return '#90caf9'; // Detail, Pattern, etc.
       })
       .attr('stroke', (d) => d.metadata?.has_insight_document ? '#0d47a1' : '#fff')
