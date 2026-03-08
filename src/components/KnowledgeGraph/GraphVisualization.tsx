@@ -498,22 +498,22 @@ export const GraphVisualization: React.FC = () => {
         const source = d.metadata?.source;
         if (source === 'online') return '#FFB6C1';
 
-        // Hierarchy-based blue gradient with high contrast
+        // Hierarchy-based colors: Project = turquoise (stands out), Components/Sub/Detail = blue gradient
         const hl = d.metadata?.hierarchyLevel;
         if (hl != null) {
-          if (hl === 0) return '#0d47a1'; // L0 Project: navy
-          if (hl === 1) return '#1976d2'; // L1 Component: strong blue
-          if (hl === 2) return '#26a69a'; // L2 SubComponent: medium blue
-          return '#90caf9';               // L3+ leaf: light blue (visible on grey bg)
+          if (hl === 0) return '#00897b'; // L0 Project: turquoise (near System green)
+          if (hl === 1) return '#1565c0'; // L1 Component: medium-dark blue
+          if (hl === 2) return '#42a5f5'; // L2 SubComponent: medium blue
+          return '#90caf9';               // L3+ Detail: light blue
         }
 
         // Fallback: use entityType when hierarchyLevel missing
-        if (d.entityType === 'Project') return '#0d47a1';
-        if (d.entityType === 'Component') return '#1976d2';
-        if (d.entityType === 'SubComponent') return '#26a69a';
+        if (d.entityType === 'Project') return '#00897b';
+        if (d.entityType === 'Component') return '#1565c0';
+        if (d.entityType === 'SubComponent') return '#42a5f5';
         return '#90caf9'; // Detail, Pattern, etc.
       })
-      .attr('stroke', (d) => d.metadata?.has_insight_document ? '#0d47a1' : '#fff')
+      .attr('stroke', (d) => d.metadata?.has_insight_document ? '#1565c0' : '#fff')
       .attr('stroke-width', (d) => d.metadata?.has_insight_document ? 3 : 2);
 
     // Node labels
