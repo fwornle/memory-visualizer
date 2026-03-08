@@ -19,6 +19,8 @@ import {
   getRelationsForEntities,
   transformToD3Format,
   computeAncestryPath,
+  calculateGraphBounds,
+  calculateCenterTransform,
 } from '../../utils/graphHelpers';
 
 export const GraphVisualization: React.FC = () => {
@@ -529,6 +531,20 @@ export const GraphVisualization: React.FC = () => {
     // Tooltips
     node.append('title').text((d) => `${d.name} (${d.entityType})`);
 
+    // Auto-fit: zoom to fit all nodes once layout stabilizes
+    let hasAutoFit = false;
+    let tickCount = 0;
+    const fitToScreen = () => {
+      if (hasAutoFit) return;
+      const bounds = calculateGraphBounds(d3Nodes as any);
+      if (bounds && zoomBehaviorRef.current) {
+        hasAutoFit = true;
+        const { x, y, scale } = calculateCenterTransform(bounds, { width, height });
+        const transform = d3.zoomIdentity.translate(x, y).scale(scale);
+        svg.transition().duration(500).call(zoomBehaviorRef.current.transform as any, transform);
+      }
+    };
+
     // Update positions on tick
     simulation.on('tick', () => {
       link.attr('d', (d: any) => {
@@ -561,7 +577,14 @@ export const GraphVisualization: React.FC = () => {
       });
 
       node.attr('transform', (d) => `translate(${d.x || 0},${d.y || 0})`);
+
+      // Fit after 120 ticks when layout is reasonably stable
+      tickCount++;
+      if (tickCount === 120) fitToScreen();
     });
+
+    // Also fit when simulation fully ends (fallback for small graphs)
+    simulation.on('end', fitToScreen);
 
     // Drag handlers
     function drag(simulation: any) {
