@@ -16,7 +16,9 @@ function sanitizeMarkdownHtml(content: string): string {
   content = content.replace(/<img\s+[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*\/?>/gi, '![$1]($2)');
   // Step 3: Convert <a href="...">text</a> to [text](href) — only for simple text content
   content = content.replace(/<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '[$2]($1)');
-  // Step 4: Remove remaining HTML block tags but keep their content
+  // Step 4: Convert <br> and <br/> to markdown line breaks
+  content = content.replace(/<br\s*\/?>/gi, '  \n');
+  // Step 5: Remove remaining HTML block tags but keep their content
   content = content.replace(/<\/?(div|picture|source|p|center)[^>]*>/gi, '');
   return content;
 }
