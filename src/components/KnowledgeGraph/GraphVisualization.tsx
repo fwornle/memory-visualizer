@@ -313,6 +313,13 @@ export const GraphVisualization: React.FC = () => {
     zoomBehaviorRef.current = zoomBehavior;
     svg.call(zoomBehavior as any);
 
+    // Click on SVG background deselects node (node clicks call stopPropagation)
+    svg.on('click', (event) => {
+      if (event.target === svgRef.current) {
+        dispatch(selectNode(null));
+      }
+    });
+
     const defs = svg.append('defs');
 
     // Create completely isolated D3-owned node objects

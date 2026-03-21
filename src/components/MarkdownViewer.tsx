@@ -2,6 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+
+/** Strip inline HTML blocks from markdown content so ReactMarkdown doesn't render raw tags.
+ *  Converts common HTML patterns (badges, centered images) to their markdown equivalents. */
+function sanitizeMarkdownHtml(content: string): string {
+  // Step 1: Convert <a href="..."><img ...></a> to [![alt](img-src)](link-href)
+  content = content.replace(/<a\s+href="([^"]*)"[^>]*>\s*<img\s+[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*\/?>\s*<\/a>/gi,
+    '[![$3]($2)]($1)');
+  content = content.replace(/<a\s+href="([^"]*)"[^>]*>\s*<img\s+[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*\/?>\s*<\/a>/gi,
+    '[![$2]($3)]($1)');
+  // Step 2: Convert standalone <img> to ![alt](src)
+  content = content.replace(/<img\s+[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*\/?>/gi, '![$2]($1)');
+  content = content.replace(/<img\s+[^>]*alt="([^"]*)"[^>]*src="([^"]*)"[^>]*\/?>/gi, '![$1]($2)');
+  // Step 3: Convert <a href="...">text</a> to [text](href) — only for simple text content
+  content = content.replace(/<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '[$2]($1)');
+  // Step 4: Remove remaining HTML block tags but keep their content
+  content = content.replace(/<\/?(div|picture|source|p|center)[^>]*>/gi, '');
+  return content;
+}
 import MermaidDiagram from './MermaidDiagram';
 import 'highlight.js/styles/github.css';
 
@@ -59,7 +77,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
         }
         
         const text = await response.text();
-        setContent(text);
+        setContent(sanitizeMarkdownHtml(text));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load markdown file');
       } finally {
@@ -323,7 +341,19 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
                         <button
                           onClick={(e) => {
                             e.preventDefault();
-                            onOpenMarkdown(href);
+                            // Resolve relative paths (./Foo.md, ../Bar.md) against current doc's directory
+                            let resolvedPath = href;
+                            if (href.startsWith('./') || href.startsWith('../') || !href.includes('/')) {
+                              const baseDir = filePath.substring(0, filePath.lastIndexOf('/'));
+                              // Construct full URL, let URL resolve the relative path, then extract pathname
+                              try {
+                                const resolved = new URL(href, baseDir.startsWith('http') ? baseDir + '/' : 'http://localhost:8080/' + baseDir + '/');
+                                resolvedPath = resolved.pathname.replace(/^\//, '');
+                              } catch {
+                                resolvedPath = href;
+                              }
+                            }
+                            onOpenMarkdown(resolvedPath);
                           }}
                           className="text-blue-600 hover:text-blue-800 underline cursor-pointer"
                           type="button"

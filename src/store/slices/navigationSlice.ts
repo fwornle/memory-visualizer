@@ -106,10 +106,18 @@ const navigationSlice = createSlice({
 
       // Normalize path for localhost files
       if (!filePath.startsWith('http')) {
-        if (!filePath.startsWith('/')) {
+        // Route to appropriate server endpoint based on path
+        if (filePath.startsWith('knowledge-management/') || filePath.startsWith('specstory/')) {
+          // Already has correct prefix for static routes
           filePath = `http://localhost:8080/${filePath}`;
-        } else {
+        } else if (filePath.startsWith('/')) {
           filePath = `http://localhost:8080${filePath}`;
+        } else if (filePath.endsWith('.md') && filePath.includes('/')) {
+          // Repo-relative path like integrations/copi/docs/hooks.md
+          filePath = `http://localhost:8080/repo-file/${filePath}`;
+        } else {
+          // Bare filename — try knowledge-management/insights/ first
+          filePath = `http://localhost:8080/knowledge-management/insights/${filePath}`;
         }
       }
 

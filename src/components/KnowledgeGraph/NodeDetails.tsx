@@ -5,11 +5,53 @@
  * observations, metadata, and related entities.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { selectNode, navigateBack, navigateForward } from '../../store/slices/navigationSlice';
 import { deleteEntity } from '../../intents/graphIntents';
 import { ConfirmDialog } from '../ConfirmDialog';
+
+// Cache of existing insight file names (loaded once from /api/insight-files)
+let insightFilesCache: Set<string> | null = null;
+let insightFilesFetchPromise: Promise<void> | null = null;
+
+function loadInsightFiles(): Promise<void> {
+  if (insightFilesCache) return Promise.resolve();
+  if (insightFilesFetchPromise) return insightFilesFetchPromise;
+  insightFilesFetchPromise = fetch('/api/insight-files')
+    .then(r => r.json())
+    .then(data => { insightFilesCache = new Set(data.files || []); })
+    .catch(() => { insightFilesCache = new Set(); });
+  return insightFilesFetchPromise;
+}
+
+/** Insight document link — only shown if the insight .md file actually exists on server */
+function InsightDocLink({ selectedNode, onOpenMarkdown }: { selectedNode: any; onOpenMarkdown: (p: string) => void }) {
+  const [loaded, setLoaded] = useState(insightFilesCache !== null);
+  const entityName = selectedNode?.entity_name || selectedNode?.name;
+
+  useEffect(() => {
+    if (!loaded) {
+      loadInsightFiles().then(() => setLoaded(true));
+    }
+  }, [loaded]);
+
+  if (!entityName || !loaded) return null;
+  if (!insightFilesCache?.has(entityName)) return null;
+
+  const insightPath = `knowledge-management/insights/${entityName}.md`;
+
+  return (
+    <div className="bg-green-50 rounded p-3">
+      <button
+        onClick={() => onOpenMarkdown(insightPath)}
+        className="text-sm text-green-700 hover:text-green-900 font-medium underline flex items-center gap-1.5"
+      >
+        <span className="text-base">📄</span> View Insight Document
+      </button>
+    </div>
+  );
+}
 
 interface NodeDetailsProps {
   onOpenMarkdown: (filePath: string) => void;
@@ -331,23 +373,8 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           </div>
         )}
 
-        {/* Insight Document Link */}
-        {selectedNode.metadata?.has_insight_document && selectedNode.metadata?.validated_file_path && (
-          <div className="bg-green-50 rounded p-3">
-            <button
-              onClick={() => {
-                let path = selectedNode.metadata!.validated_file_path!;
-                // Convert absolute path to relative for the markdown viewer
-                const knowledgeMatch = path.match(/knowledge-management\/.+\.md$/);
-                if (knowledgeMatch) path = knowledgeMatch[0];
-                onOpenMarkdown(path);
-              }}
-              className="text-sm text-green-700 hover:text-green-900 font-medium underline flex items-center gap-1.5"
-            >
-              <span className="text-base">📄</span> View Insight Document
-            </button>
-          </div>
-        )}
+        {/* Insight Document Link — only shown if insight file exists */}
+        <InsightDocLink selectedNode={selectedNode} onOpenMarkdown={onOpenMarkdown} />
 
         {/* Observations */}
         {selectedNode.observations && selectedNode.observations.length > 0 && (

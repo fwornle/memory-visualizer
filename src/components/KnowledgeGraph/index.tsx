@@ -5,11 +5,12 @@
  * This is a minimal version to test the Redux architecture.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { loadPersistedFilters } from '../../store/slices/filtersSlice';
 import { loadGraphData, checkDatabaseHealth, loadAvailableTeams } from '../../intents/graphIntents';
 import { setDbHealthy, setUseDatabase } from '../../store/slices/uiSlice';
+import { selectNode, closeMarkdown } from '../../store/slices/navigationSlice';
 import { TeamFilter } from '../Filters/TeamFilter';
 import { SourceFilter } from '../Filters/SourceFilter';
 import { SearchFilter } from '../Filters/SearchFilter';
@@ -25,7 +26,7 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
   const { isLoading, error, stats } = useAppSelector(state => state.graph);
   const { selectedTeams, dataSource, searchTerm } = useAppSelector(state => state.filters);
   const { dbHealthy } = useAppSelector(state => state.ui);
-  const { selectedNode } = useAppSelector(state => state.navigation);
+  const { selectedNode, markdownFile } = useAppSelector(state => state.navigation);
 
   // Initialize on mount
   useEffect(() => {
@@ -53,6 +54,24 @@ export const KnowledgeGraph: React.FC<{ onOpenMarkdown: (filePath: string) => vo
 
     initialize();
   }, [dispatch]);
+
+  // ESC key: close insight document first, then node sidebar
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (markdownFile) {
+        // First ESC: close the open insight/markdown document
+        dispatch(closeMarkdown());
+      } else if (selectedNode) {
+        // Second ESC: close the node details sidebar
+        dispatch(selectNode(null));
+      }
+    }
+  }, [dispatch, selectedNode, markdownFile]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   // Load graph data when teams or dataSource changes
   useEffect(() => {

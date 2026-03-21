@@ -86,6 +86,8 @@ export class DatabaseClient {
    */
   async queryRelations(options: { entityId?: string; team?: string } = {}): Promise<Relation[]> {
     const params = new URLSearchParams();
+    // Fetch all relations (server defaults to 1000 which truncates larger graphs)
+    params.append('limit', '10000');
 
     if (options.entityId) params.append('entityId', options.entityId);
     if (options.team) params.append('team', options.team);
