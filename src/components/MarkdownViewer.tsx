@@ -20,6 +20,11 @@ function sanitizeMarkdownHtml(content: string): string {
   content = content.replace(/<br\s*\/?>/gi, '  \n');
   // Step 5: Remove remaining HTML block tags but keep their content
   content = content.replace(/<\/?(div|picture|source|p|center)[^>]*>/gi, '');
+  // Step 6: Fix indentation — lines that start with spaces followed by ![ or [![ are images
+  // that were inside HTML blocks. Remove leading spaces to prevent code block rendering.
+  content = content.replace(/^[ \t]+(!\[)/gm, '$1');
+  // Clean up excessive blank lines from tag removal
+  content = content.replace(/\n{3,}/g, '\n\n');
   return content;
 }
 import MermaidDiagram from './MermaidDiagram';
