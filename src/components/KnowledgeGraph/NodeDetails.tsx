@@ -6,6 +6,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { selectNode, navigateBack, navigateForward } from '../../store/slices/navigationSlice';
 import { deleteEntity } from '../../intents/graphIntents';
@@ -57,6 +59,71 @@ interface NodeDetailsProps {
   onOpenMarkdown: (filePath: string) => void;
   searchTerm?: string;
 }
+
+/**
+ * Render an observation as proper markdown — bullet lists, bold,
+ * inline code, headings — instead of dumping raw markdown characters
+ * inline with the prose. Preserves the existing "click an .md link
+ * to open it in the in-app viewer" behavior for legacy observations
+ * that still embed file paths.
+ */
+const ObservationMarkdown: React.FC<{ text: string | null | undefined; onOpenMarkdown: (path: string) => void }> = ({ text, onOpenMarkdown }) => {
+  if (!text || typeof text !== 'string') return null;
+  return (
+    <div className="text-sm text-gray-700 leading-relaxed observation-markdown">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="my-1">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-5 my-1 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-5 my-1 space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="text-sm">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          code: ({ inline, children, ...rest }: any) =>
+            inline ? (
+              <code className="px-1 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-800" {...rest}>{children}</code>
+            ) : (
+              <code className="font-mono text-xs" {...rest}>{children}</code>
+            ),
+          pre: ({ children }) => <pre className="bg-gray-50 p-2 rounded text-xs my-2 overflow-x-auto">{children}</pre>,
+          h1: ({ children }) => <h4 className="text-base font-semibold mt-2 mb-1">{children}</h4>,
+          h2: ({ children }) => <h5 className="text-sm font-semibold mt-2 mb-1">{children}</h5>,
+          h3: ({ children }) => <h6 className="text-sm font-semibold mt-2 mb-1">{children}</h6>,
+          h4: ({ children }) => <h6 className="text-sm font-semibold mt-2 mb-1">{children}</h6>,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-gray-300 pl-3 my-1 text-gray-600 italic">{children}</blockquote>
+          ),
+          a: ({ href, children, ...rest }) => {
+            const url = typeof href === 'string' ? href : '';
+            // Intercept .md file references so they open in the
+            // viewer's markdown panel instead of navigating away.
+            const isMarkdownPath = /\.md(?:#.*)?$/i.test(url) && !/^https?:\/\//i.test(url);
+            if (isMarkdownPath) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); onOpenMarkdown(url); }}
+                  className="text-blue-600 hover:text-blue-800 underline cursor-pointer bg-transparent p-0 border-0"
+                  title={url}
+                >
+                  {children}
+                </button>
+              );
+            }
+            return (
+              <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline" {...rest}>
+                {children}
+              </a>
+            );
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+};
 
 export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, searchTerm }) => {
   const dispatch = useAppDispatch();
@@ -380,13 +447,13 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
         {selectedNode.observations && selectedNode.observations.length > 0 && (
           <div>
             <h5 className="font-semibold text-gray-700 mb-2">Observations</h5>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {selectedNode.observations.map((obs, index) => {
                 // Handle both string observations and object observations with content field
                 const content = typeof obs === 'string' ? obs : obs?.content;
                 return (
                   <li key={index} className="text-sm text-gray-700 pl-4 border-l-2 border-blue-200">
-                    {renderTextWithLinks(content)}
+                    <ObservationMarkdown text={content} onOpenMarkdown={onOpenMarkdown} />
                   </li>
                 );
               })}
