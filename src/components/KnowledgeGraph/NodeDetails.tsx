@@ -88,7 +88,7 @@ function decorateRedactions(children: React.ReactNode): React.ReactNode {
       out.push(
         <span
           key={`r-${idx}-${i++}`}
-          className="text-sky-400 font-mono text-xs"
+          className="text-sky-400 font-mono text-[10px] align-middle"
           title="Redacted by ConfigurableRedactor"
         >
           {m[0]}
