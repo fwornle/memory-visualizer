@@ -61,6 +61,47 @@ interface NodeDetailsProps {
 }
 
 /**
+ * Recognized redaction tokens emitted by ConfigurableRedactor — angle-
+ * bracketed all-caps + REDACTED suffix. The viewer renders these in
+ * pale blue so they read as scrubbed sensitive data instead of
+ * mistaken for stray markup.
+ */
+const REDACTION_PATTERN = /<[A-Z][A-Z0-9_]*_REDACTED>/g;
+
+/**
+ * Walk the React children of a markdown element and replace every
+ * occurrence of a redaction token in any plain-text leaf with a
+ * styled span. Element children (links, code, etc.) pass through
+ * unmodified.
+ */
+function decorateRedactions(children: React.ReactNode): React.ReactNode {
+  return React.Children.map(children, (child, idx) => {
+    if (typeof child !== 'string') return child;
+    if (!REDACTION_PATTERN.test(child)) return child;
+    REDACTION_PATTERN.lastIndex = 0;
+    const out: React.ReactNode[] = [];
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = REDACTION_PATTERN.exec(child)) !== null) {
+      if (m.index > last) out.push(child.slice(last, m.index));
+      out.push(
+        <span
+          key={`r-${idx}-${i++}`}
+          className="text-sky-400 font-mono text-xs"
+          title="Redacted by ConfigurableRedactor"
+        >
+          {m[0]}
+        </span>
+      );
+      last = m.index + m[0].length;
+    }
+    if (last < child.length) out.push(child.slice(last));
+    return out;
+  });
+}
+
+/**
  * Render an observation as proper markdown — bullet lists, bold,
  * inline code, headings — instead of dumping raw markdown characters
  * inline with the prose. Preserves the existing "click an .md link
@@ -74,12 +115,12 @@ const ObservationMarkdown: React.FC<{ text: string | null | undefined; onOpenMar
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className="my-1">{children}</p>,
+          p: ({ children }) => <p className="my-1">{decorateRedactions(children)}</p>,
           ul: ({ children }) => <ul className="list-disc pl-5 my-1 space-y-0.5">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-5 my-1 space-y-0.5">{children}</ol>,
-          li: ({ children }) => <li className="text-sm">{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-          em: ({ children }) => <em className="italic">{children}</em>,
+          li: ({ children }) => <li className="text-sm">{decorateRedactions(children)}</li>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900">{decorateRedactions(children)}</strong>,
+          em: ({ children }) => <em className="italic">{decorateRedactions(children)}</em>,
           code: ({ inline, children, ...rest }: any) =>
             inline ? (
               <code className="px-1 py-0.5 bg-gray-100 rounded text-xs font-mono text-gray-800" {...rest}>{children}</code>
@@ -87,12 +128,12 @@ const ObservationMarkdown: React.FC<{ text: string | null | undefined; onOpenMar
               <code className="font-mono text-xs" {...rest}>{children}</code>
             ),
           pre: ({ children }) => <pre className="bg-gray-50 p-2 rounded text-xs my-2 overflow-x-auto">{children}</pre>,
-          h1: ({ children }) => <h4 className="text-base font-semibold mt-2 mb-1">{children}</h4>,
-          h2: ({ children }) => <h5 className="text-sm font-semibold mt-2 mb-1">{children}</h5>,
-          h3: ({ children }) => <h6 className="text-sm font-semibold mt-2 mb-1">{children}</h6>,
-          h4: ({ children }) => <h6 className="text-sm font-semibold mt-2 mb-1">{children}</h6>,
+          h1: ({ children }) => <h4 className="text-base font-semibold mt-2 mb-1">{decorateRedactions(children)}</h4>,
+          h2: ({ children }) => <h5 className="text-sm font-semibold mt-2 mb-1">{decorateRedactions(children)}</h5>,
+          h3: ({ children }) => <h6 className="text-sm font-semibold mt-2 mb-1">{decorateRedactions(children)}</h6>,
+          h4: ({ children }) => <h6 className="text-sm font-semibold mt-2 mb-1">{decorateRedactions(children)}</h6>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-gray-300 pl-3 my-1 text-gray-600 italic">{children}</blockquote>
+            <blockquote className="border-l-2 border-gray-300 pl-3 my-1 text-gray-600 italic">{decorateRedactions(children)}</blockquote>
           ),
           a: ({ href, children, ...rest }) => {
             const url = typeof href === 'string' ? href : '';
