@@ -228,7 +228,12 @@ export const computeAncestryPath = (
 ): AncestryPathResult => {
   const edges = new Set<string>();
   const nodeDepths = new Map<string, number>();
-  const HIERARCHY_TYPES = new Set(['contains', 'includes', 'parent-child']);
+  // `has_insight` is the relation the consolidator emits when it
+  // mirrors an online-learned insight under its project anchor; it
+  // serves the same hierarchical purpose as `contains` here, so the
+  // BFS treats it as a parent-edge so the route can render up to
+  // CollectiveKnowledge for the new entities too.
+  const HIERARCHY_TYPES = new Set(['contains', 'includes', 'parent-child', 'has_insight']);
 
   // Build a reverse adjacency map: child → parent(s) via hierarchy relations
   const childToParents = new Map<string, string[]>();
