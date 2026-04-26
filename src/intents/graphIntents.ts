@@ -247,6 +247,11 @@ export const loadGraphData = createAsyncThunk<
             confidence: e.confidence,
             lastModified: e.lastModified,
             createdAt: e.createdAt || e.lastModified, // Use lastModified as fallback for createdAt
+            // Original creation timestamp surfaced under both names so
+            // the History sidebar can distinguish "fresh entity" from
+            // "old entity touched by a cleanup write" (dedup, casing
+            // canonicalization, etc.).
+            extractedAt: (e as any).extractedAt || (e as any).extracted_at || e.createdAt || null,
             teams: e.metadata?.teams,
             diffStats: diffStats,
             // Ontology classification metadata (check both top-level and nested in originalMetadata)

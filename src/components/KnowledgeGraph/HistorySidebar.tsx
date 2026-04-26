@@ -227,7 +227,14 @@ export const HistorySidebar: React.FC = () => {
           </div>
         ) : (
           historyItems.map((entity, index) => {
-            const timestamp = entity.metadata?.lastModified;
+            const lastModified = entity.metadata?.lastModified;
+            // `extractedAt` is the original creation timestamp; falling
+            // back to `created_at` covers entities written through the
+            // GraphDB merge path that doesn't expose camelCase aliases.
+            const extractedAt = (entity.metadata as Record<string, any>)?.extractedAt
+              || (entity as any).extracted_at
+              || (entity.metadata as Record<string, any>)?.created_at;
+            const wasUpdated = extractedAt && lastModified && extractedAt !== lastModified;
             const source = entity.metadata?.source;
             const diffBadges = getDiffBadges(entity);
 
@@ -262,7 +269,14 @@ export const HistorySidebar: React.FC = () => {
                   </div>
                 )}
                 <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
+                  <span
+                    className="flex items-center gap-1"
+                    title={
+                      wasUpdated
+                        ? `Created ${formatTimestamp(extractedAt)} · Last edited ${formatTimestamp(lastModified)}`
+                        : undefined
+                    }
+                  >
                     <svg
                       className="w-3 h-3"
                       fill="none"
@@ -276,7 +290,15 @@ export const HistorySidebar: React.FC = () => {
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    {formatTimestamp(timestamp)}
+                    {wasUpdated ? (
+                      <>
+                        <span>{formatTimestamp(extractedAt)}</span>
+                        <span className="text-gray-400">·</span>
+                        <span className="text-gray-400">edited {formatTimestamp(lastModified)}</span>
+                      </>
+                    ) : (
+                      <span>{formatTimestamp(lastModified || extractedAt)}</span>
+                    )}
                   </span>
                   {entity.metadata?.team && (
                     <span className="text-xs font-medium text-gray-600">
