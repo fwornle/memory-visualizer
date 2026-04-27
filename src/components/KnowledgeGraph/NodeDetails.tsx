@@ -460,6 +460,24 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ onOpenMarkdown, search
           </div>
         )}
 
+        {/* Mixed-topic warning — surfaced when an entity's observations
+            were detected as spanning unrelated subjects at write time. */}
+        {selectedNode.metadata?.mixed_topics && (
+          <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-amber-700 font-semibold">⚠ Mixed topics detected</span>
+              {Array.isArray(selectedNode.metadata.mixed_topics_pairs) && (
+                <span className="text-xs text-amber-600">
+                  ({selectedNode.metadata.mixed_topics_pairs.length} unrelated observation pair{selectedNode.metadata.mixed_topics_pairs.length === 1 ? '' : 's'})
+                </span>
+              )}
+            </div>
+            <p className="text-amber-800 text-xs">
+              This entity bundles observations whose topics don't overlap. Review and split if appropriate.
+            </p>
+          </div>
+        )}
+
         {/* Ontology Classification Info */}
         {selectedNode.metadata?.ontology && (
           <div className="bg-purple-50 rounded p-3 space-y-1 text-sm">

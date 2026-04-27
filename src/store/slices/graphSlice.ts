@@ -60,6 +60,10 @@ export interface Entity {
     // Insight document fields
     has_insight_document?: boolean;
     validated_file_path?: string;
+    // Mixed-topic detection — tagged by the persistence agent when an
+    // entity bundles observations across unrelated subjects.
+    mixed_topics?: boolean;
+    mixed_topics_pairs?: Array<{ a: number; b: number; similarity: number }>;
   };
 }
 
